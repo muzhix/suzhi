@@ -1,6 +1,6 @@
 # 溯知（OntoTrace）平台整体规划：事件式语义单元方案
 
-> 文档版本：1.12 设计基线
+> 文档版本：1.13 设计基线
 >
 > 修订日期：2026-09-03
 >
@@ -1407,19 +1407,21 @@ EDU 被替代或失去访问权限时，受影响成果显示需要复核，不�
 | 文档解析   | 文档解析器接口 + MinerU Web API 适配器                      | 初版统一解析 PDF、Office、图片和 HTML；原始解析结果进入 S3，标准化结果进入平台模型             |
 | 异步执行   | PostgreSQL 任务表 + Spring 调度工作进程                    | 解析、EDU 生成和索引；首期不引入 Quartz、Kafka 或工作流引擎                         |
 | 前端包管理  | pnpm                                              | 前端依赖与脚本管理                                                      |
-| 前端框架   | React + TypeScript                                | 阅读器、EDU 编辑、实体浏览和研究工作台                                          |
+| 前端框架   | Vue 3 + TypeScript                                | 阅读器、EDU 编辑、实体浏览和研究工作台                                          |
 | 前端构建   | Vite                                              | 本地开发和生产构建                                                      |
-| 组件与样式  | shadcn/ui + Tailwind CSS                          | 可访问基础组件和统一设计令牌                                                 |
-| 服务端状态  | TanStack Query                                    | 请求缓存、失效、分页和异步任务轮询                                              |
-| 路由     | React Router                                      | 页面和项目内导航                                                       |
-| 表单校验   | React Hook Form + Zod                             | 复杂编辑表单和客户端输入校验                                                 |
+| 组件与样式  | shadcn-vue + Tailwind CSS                         | 可访问基础组件和统一设计令牌                                                 |
+| AI 界面   | AI Elements Vue                                   | 问答对话、流式消息、推理过程和引用来源呈现                                        |
+| 客户端状态  | Pinia                                             | 阅读器偏好、工作台会话状态和跨页局部状态                                           |
+| 服务端状态  | TanStack Vue Query                                | 请求缓存、失效、分页和异步任务轮询                                              |
+| 路由     | Vue Router                                        | 页面和项目内导航                                                       |
+| 表单校验   | VeeValidate + Zod                                 | 复杂编辑表单和客户端输入校验                                                 |
 | API 契约 | REST/JSON + OpenAPI 3                             | 生成 TypeScript 客户端类型，减少前后端手写重复                                  |
-| 任务进度   | REST 状态接口 + 前端轮询                                  | TanStack Query 按任务状态调整轮询间隔，终态自动停止                                  |
+| 任务进度   | REST 状态接口 + 前端轮询                                  | TanStack Vue Query 按任务状态调整轮询间隔，终态自动停止                             |
 | 生成输出   | SSE 或分块 HTTP 响应                                    | 问答和文章正文逐步呈现；与后台任务进度机制分开                                        |
 | 身份与权限  | Spring Security                                   | 登录认证及项目、文档、任务和索引的资源权限                                     |
 | 可观测性   | Spring Boot Actuator + Micrometer + OpenTelemetry | 指标、追踪、健康检查和模型调用观测                                              |
 | 后端测试   | JUnit 5 + Testcontainers                          | 领域、数据库迁移、PostgreSQL 和 S3 兼容性测试                                 |
-| 前端测试   | Vitest + React Testing Library + Playwright       | 组件、交互和关键研究链路测试                                                 |
+| 前端测试   | Vitest + Vue Test Utils + Playwright              | 组件、交互和关键研究链路测试                                                 |
 | 构建与部署  | Maven Wrapper、pnpm、OCI 容器、Docker Compose          | 可复现构建；首期不要求 Kubernetes                                         |
 
 本规划选择 Spring AI 2.0，因为它与 Spring Boot 4.0、4.1 处于同一支持体系，并原生提供 `ChatClient`、模型自动配置、Micrometer 观测和结构化输出。EDU 抽取使用提供方原生结构化输出与响应校验；启动时检查目标模型能力，不能让不支持 JSON Schema 的模型静默降级后进入正式抽取。[Spring AI Getting Started](https://docs.spring.io/spring-ai/reference/getting-started.html) [Spring AI Provider-Native Structured Output](https://docs.spring.io/spring-ai/reference/api/structured-output/native.html)
@@ -1433,6 +1435,8 @@ EDU 被替代或失去访问权限时，受影响成果显示需要复核，不�
 pgvector 能在 PostgreSQL 内提供精确和近似向量检索，因此首期不增加专用向量数据库。[pgvector](https://github.com/pgvector/pgvector)
 
 中文检索不能直接依赖 PostgreSQL 默认分词。每个文本单元保留不可变展示文本，并派生只用于召回的规范检索文本：先执行 Unicode NFKC，再按受版本控制的简繁、异体和人名保护词典归一。引用位置始终以不可变展示文本为准；规范化改变长度时保存位置映射，检索命中先映射回展示文本再生成引用。规范化规则和词典版本随索引处理运行保存；规则变化触发派生索引重建，不修改文档版本。中文分词扩展或 n-gram 的具体选择由阶段 B 在目标部署环境中基准确定，不为尚未验证的实现增加第二套搜索基础设施。
+
+前端采用 Vue 3 + TypeScript 单页应用，由 Vite 构建。应用通过 REST 与 SSE 对接 Spring Boot，不引入 Nuxt。基础界面使用 shadcn-vue 和 Tailwind CSS。问答与写作使用 AI Elements Vue 呈现对话、流式消息、推理过程和引用来源。流式数据仍消费平台 SSE 或分块 HTTP 接口，不以 Vercel AI SDK 作为后端生成协议。页面状态使用 Pinia；服务端缓存、失效和任务轮询使用 TanStack Vue Query；路由使用 Vue Router；复杂表单使用 VeeValidate 与 Zod。
 
 ### 17.3 逻辑架构
 
@@ -1690,7 +1694,7 @@ MinerU 精准解析 API 本身采用“提交任务后轮询结果”的异步�
 GET /jobs/{jobId}
 ```
 
-响应至少包含状态、阶段、当前进度、总量、创建时间、更新时间和失败摘要。没有可靠总量时返回阶段和不确定进度，不伪造百分比。TanStack Query 在任务终态自动停止轮询；刷新页面后仍可从数据库恢复显示。
+响应至少包含状态、阶段、当前进度、总量、创建时间、更新时间和失败摘要。没有可靠总量时返回阶段和不确定进度，不伪造百分比。TanStack Vue Query 在任务终态自动停止轮询；刷新页面后仍可从数据库恢复显示。
 
 ---
 
