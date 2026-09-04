@@ -1,0 +1,23 @@
+ontotrace:
+  ai:
+    mode: ${AI_MODE:live}
+  worker:
+    enabled: true
+
+spring:
+  ai:
+    chat:
+      observations:
+        log-prompt: true
+        log-completion: true
+        include-error-logging: true
+      client:
+        observations:
+          log-prompt: true
+          log-completion: true
+
+logging:
+  level:
+    com.ontotrace: INFO
+    com.ontotrace.semantic.extraction: DEBUG
+    org.springframework.ai: DEBUG

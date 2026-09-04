@@ -1,2 +1,23 @@
 .DS_Store
 .atlas/
+.idea/
+.vscode/
+*.iml
+
+# backend
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+!backend/.mvn/wrapper/maven-wrapper.properties
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+
+# env
+.env
+.env.local
+**/.env
+!**/.env.example

@@ -1396,7 +1396,7 @@ EDU 被替代或失去访问权限时，受影响成果显示需要复核，不�
 | 后端语言   | Java 21                                           | 使用长期支持版本，启用记录类、模式匹配和现代并发能力                                     |
 | 应用框架   | Spring Boot 4.1.x                                 | REST API、配置、校验、安全、任务与可观测性；实施时固定受支持的小版本                         |
 | 模型集成   | Spring AI 2.0.x                                   | `ChatClient`、提示模板、结构化输出、工具调用和模型观测；优先采用模型原生 JSON Schema 并执行结构校验 |
-| 数据访问   | Spring Data JDBC + `JdbcClient`                   | 简单聚合 CRUD 使用 Repository；图查询、全文、向量、批量写入和任务领取使用显式 SQL            |
+| 数据访问   | Spring Data JDBC                                  | 简单 CRUD 使用 Repository；JOIN、权限过滤、全文、任务领取等自定义 SQL 写在 Repository `@Query` |
 | 数据库迁移  | Flyway                                            | 所有结构变化使用有序迁移                                                   |
 | 主数据库   | PostgreSQL 16 或更新受支持版本                            | 事务数据、全文检索、JSON、邻接查询和任务队列                                       |
 | 中文检索   | PostgreSQL 中文分词扩展或经基准验证的 n-gram 方案                  | 对规范检索文本建立索引；阶段 B 按召回率、目标部署环境支持、部署成本和维护状态选定                    |
@@ -1418,7 +1418,7 @@ EDU 被替代或失去访问权限时，受影响成果显示需要复核，不�
 | API 契约 | REST/JSON + OpenAPI 3                             | 生成 TypeScript 客户端类型，减少前后端手写重复                                  |
 | 任务进度   | REST 状态接口 + 前端轮询                                  | TanStack Vue Query 按任务状态调整轮询间隔，终态自动停止                             |
 | 生成输出   | SSE 或分块 HTTP 响应                                    | 问答和文章正文逐步呈现；与后台任务进度机制分开                                        |
-| 身份与权限  | Spring Security                                   | 登录认证及项目、文档、任务和索引的资源权限                                     |
+| 身份与权限  | Spring Security、账号密码、服务端 Session              | 登录认证及项目、文档、任务和索引的资源权限；不自建 JWT 或 OIDC                  |
 | 可观测性   | Spring Boot Actuator + Micrometer + OpenTelemetry | 指标、追踪、健康检查和模型调用观测                                              |
 | 后端测试   | JUnit 5 + Testcontainers                          | 领域、数据库迁移、PostgreSQL 和 S3 兼容性测试                                 |
 | 前端测试   | Vitest + Vue Test Utils + Playwright              | 组件、交互和关键研究链路测试                                                 |
@@ -1428,7 +1428,7 @@ EDU 被替代或失去访问权限时，受影响成果显示需要复核，不�
 
 平台仍应定义自己的模型网关，只向领域层暴露“生成 EDU”“生成嵌入”和必要的调用元数据，不暴露 Spring AI 类型。若某个模型只能通过专有协议使用，只为该协议增加 Spring AI 模型适配器，不在同一应用中同时引入 LangChain4j。
 
-数据访问以 Spring Data JDBC 为默认映射和 Repository 方案，并直接复用其底层 Spring JDBC 能力。EDU 参数批量写入、`FOR UPDATE SKIP LOCKED` 任务领取、递归查询、全文、`pgvector` 和局部图读取使用 `JdbcClient` 或批量 JDBC 明确表达 SQL。不要把 EDU 及其全部参数映射成一个需要整体 `save` 的大型聚合；Spring Data JDBC 对聚合内被引用实体可能采用删除后重建的保存语义，不适合不可变明细记录。[Spring Data JDBC](https://docs.spring.io/spring-data/relational/reference/jdbc.html) [Spring Data JDBC Aggregates](https://docs.spring.io/spring-data/relational/reference/jdbc/domain-driven-design.html)
+数据访问以 Spring Data JDBC Repository 为默认方案。简单 CRUD 用 `save`/`findById`；JOIN、权限过滤、批量更新、全文、`pgvector`、递归查询和 `FOR UPDATE SKIP LOCKED` 任务领取，把 SQL 写在 Repository 的 `@Query` 上，不另建 `JdbcClient` 查询类。只有注解绑定不了的语句才退回 `JdbcClient` 或批量 JDBC。不要把 EDU 及其全部参数映射成一个需要整体 `save` 的大型聚合；Spring Data JDBC 对聚合内被引用实体可能采用删除后重建的保存语义，不适合不可变明细记录。[Spring Data JDBC](https://docs.spring.io/spring-data/relational/reference/jdbc.html) [Spring Data JDBC Aggregates](https://docs.spring.io/spring-data/relational/reference/jdbc/domain-driven-design.html)
 
 首期不采用 JPA，因为平台的主要复杂度在 PostgreSQL 查询、批量写入和追加式记录，而不在需要延迟加载、脏检查和级联保存的对象关系。也不采用 MyBatis-Plus；它擅长减少单表 CRUD 和条件构造代码，但本平台的关键 SQL 仍需显式编写。若未来团队统一要求 MyBatis，可以整体替换数据访问实现，但不与 Spring Data JDBC 混用两套实体映射。
 

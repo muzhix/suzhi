@@ -1,0 +1,10 @@
+ontotrace:
+  ai:
+    mode: stub
+  worker:
+    enabled: false
+    poll-interval-ms: 200
+    lease-seconds: 5
+  bootstrap:
+    admin-username: admin
+    admin-password: adminpass

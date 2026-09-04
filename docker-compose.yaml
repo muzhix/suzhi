@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: registry.cn-hangzhou.aliyuncs.com/hanbd/linux_arm64_pgvector:pg16
+    environment:
+      POSTGRES_DB: ontotrace
+      POSTGRES_USER: ontotrace
+      POSTGRES_PASSWORD: ontotrace
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ontotrace -d ontotrace"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  silo:
+    image: pgsty/silo:RELEASE.2026-08-06T00-00-00Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports: ["9000:9000", "9001:9001"]
+    environment:
+      MINIO_ROOT_USER: silo
+      # Silo/MinIO 要求密码至少 8 位，短密码会直接拒绝启动
+      MINIO_ROOT_PASSWORD: silo-dev
+    volumes:
+      - silo-data:/data
+    healthcheck:
+      test: ["CMD", "silo", "healthcheck", "ready"]
+      interval: 30s
+
+  silo-init:
+    image: pgsty/mc:latest
+    depends_on:
+      - silo
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3;
+      mc alias set local http://silo:9000 silo silo-dev;
+      mc mb -p local/ontotrace || true;
+      printf '%s' '{\"CORSRules\":[{\"AllowedOrigins\":[\"http://localhost:5173\",\"http://127.0.0.1:5173\"],\"AllowedMethods\":[\"GET\",\"PUT\",\"HEAD\"],\"AllowedHeaders\":[\"*\"],\"ExposeHeaders\":[\"ETag\"],\"MaxAgeSeconds\":3600}]}' > /tmp/cors.json;
+      mc cors set local/ontotrace /tmp/cors.json || true;
+      exit 0;
+      "
+
+
+volumes:
+  postgres_data:
+  silo-data:

@@ -1,0 +1,4 @@
+{"id":"role-ok","role":"subject","roleName":null,"valid":true}
+{"id":"role-other-needs-name","role":"other","roleName":null,"valid":false}
+{"id":"role-other-ok","role":"other","roleName":"告密者","valid":true}
+{"id":"role-unknown","role":"hero","roleName":null,"valid":false}

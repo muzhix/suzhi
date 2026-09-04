@@ -58,16 +58,16 @@ B 及后续阶段仍需完成各自的功能、权限、数据完整性、质量
 
 | 范围 | 选择 | 落地约束 |
 | --- | --- | --- |
-| Java | Java 21 | 后端统一运行时；优先使用 record、sealed type 和标准库，不引入 Lombok |
+| Java | Java 21 | 后端统一运行时；优先使用 record、sealed type 和标准库；样板代码使用 Lombok |
 | 后端 | Spring Boot 4.1.1 | 使用 Spring MVC，不引入 WebFlux；流式输出只使用 MVC 支持的 SSE |
 | 模型集成 | Spring AI 2.0.1 | 使用 BOM 管理版本；首个可用模型必须支持原生 JSON Schema |
 | 构建 | Maven Wrapper | 单 Maven 模块；开发和 CI 都调用 `./mvnw` |
-| 数据访问 | Spring Data JDBC + `JdbcClient` | 普通 CRUD 用 Repository；批量写入、任务领取、全文、向量和图查询写显式 SQL |
+| 数据访问 | Spring Data JDBC | 普通 CRUD 用 Repository；自定义 SQL 写在 Repository `@Query`；不要另写 `JdbcClient` 查询类 |
 | 数据库 | PostgreSQL 16+、pgvector、`pg_trgm` | 同库保存业务数据和向量；中文全文方案在阶段 B 基准后确定 |
 | 迁移 | Flyway | 迁移只前进，不在共享环境修改已执行脚本 |
 | 对象存储 | S3 兼容存储、AWS SDK for Java 2.x | 生产可用 AWS S3；本地使用 MinIO；浏览器预签名直传 |
 | 文档解析 | `DocumentParser` + MinerU Web API | TXT/Markdown 走内置同步导入器；其他格式先接 MinerU |
-| 认证 | Spring Security、OIDC、服务端 Session | SPA 与 API 同源部署；使用 HttpOnly/Secure/SameSite Cookie 和 CSRF 防护，不自建 JWT 体系 |
+| 认证 | Spring Security、账号密码、服务端 Session | SPA 与 API 同源部署；使用 HttpOnly/Secure/SameSite Cookie 和 CSRF 防护，不自建 JWT 或 OIDC |
 | OpenAPI | springdoc-openapi 3.1.0 | 后端生成 OpenAPI 3；前端不手写重复 DTO |
 | Node.js | Node.js 24 LTS | 写入 `.node-version`；只用于前端构建和工具链 |
 | 前端 | Vue 3、TypeScript、Vite | Composition API、`<script setup lang="ts">`、TypeScript strict |
@@ -93,7 +93,6 @@ B 及后续阶段仍需完成各自的功能、权限、数据完整性、质量
 - `spring-boot-starter-webmvc`
 - `spring-boot-starter-validation`
 - `spring-boot-starter-security`
-- `spring-boot-starter-security-oauth2-client`
 - `spring-boot-starter-data-jdbc`
 - `spring-boot-starter-actuator`
 - `flyway-core` 及 PostgreSQL 数据库支持
@@ -172,15 +171,14 @@ backend/src/main/java/com/ontotrace/
 │   └── CurrentUser.java
 ├── document/                                      # [B]
 │   ├── DocumentController.java
-│   ├── DocumentApplicationService.java
+│   ├── DocumentService.java
 │   ├── Document.java
 │   ├── DocumentVersion.java
 │   ├── TextUnit.java
 │   ├── DocumentRepository.java
-│   ├── DocumentQueries.java
 │   ├── asset/
 │   │   ├── UploadController.java
-│   │   ├── UploadApplicationService.java
+│   │   ├── UploadService.java
 │   │   └── S3AssetStore.java
 │   └── parser/
 │       ├── DocumentParser.java
@@ -188,7 +186,7 @@ backend/src/main/java/com/ontotrace/
 │       └── MineruWebApiDocumentParser.java
 ├── semantic/                                      # [B]
 │   ├── EduController.java                         # [B]
-│   ├── EduApplicationService.java                 # [B]
+│   ├── EduService.java                 # [B]
 │   ├── Edu.java
 │   ├── EduArgument.java
 │   ├── EduSourceReference.java
@@ -205,7 +203,7 @@ backend/src/main/java/com/ontotrace/
 │       └── EduBatchWriter.java
 ├── entity/                                        # [C]
 │   ├── EntityController.java
-│   ├── EntityApplicationService.java
+│   ├── EntityService.java
 │   ├── EntityLinker.java
 │   └── EntityQueries.java
 ├── retrieval/                                     # [B/C]
@@ -219,7 +217,7 @@ backend/src/main/java/com/ontotrace/
 │       └── LocalPprGraphRetrieval.java
 ├── research/                                      # [D/E]
 │   ├── QuestionController.java
-│   ├── QuestionApplicationService.java
+│   ├── QuestionService.java
 │   ├── ArtifactController.java                    # [E]
 │   └── CitationSupportChecker.java
 ├── runcontrol/                                    # [B]
@@ -233,14 +231,15 @@ backend/src/main/java/com/ontotrace/
     └── RequestIdFilter.java
 ```
 
-以上是目标结构，不是首批必须一次建完的文件清单。每个模块先使用一个 Application Service；当它已经出现多条彼此独立的写入流程时，再按用例拆分。不要给每个类机械增加 interface、factory、mapper 和 DTO 层。
+以上是目标结构，不是首批必须一次建完的文件清单。每个模块先使用一个 Service；当它已经出现多条彼此独立的写入流程时，再按用例拆分。不要给每个类机械增加 interface、factory、mapper 和 DTO 层。
 
 包内约定：
 
 - Controller 只做协议转换、输入校验和权限入口，不拼 SQL，不调用外部模型。
-- Application Service 负责事务和完整用例。
+- Service 负责事务和完整用例。
 - 领域 record、枚举和规则放在模块根包，除非数量增长后确实需要子包。
-- Repository 用于简单聚合 CRUD；复杂读取和批量写入使用以 `Queries`、`Writer` 结尾的 `JdbcClient` 类。
+- 数据访问以 Spring Data JDBC Repository 为主。简单 CRUD 用 `save`/`findById`；需要 JOIN、权限过滤、批量更新或 `FOR UPDATE SKIP LOCKED` 时，把 SQL 写在 Repository 的 `@Query` 上，不要另建 `JdbcClient` 查询类。
+- 只有 `@Query` 绑定不了的语句才用 `JdbcClient`。B0 没有这种语句。
 - 跨模块读取通过目标模块公开的应用方法，或由 `retrieval` 编写只读跨表 SQL；跨模块不能直接更新别的模块表。
 - 默认使用包可见性。只有真实调用方需要时才公开类型。
 
@@ -579,7 +578,7 @@ GET    /api/artifacts/{artifactId}/export.md
 
 ### 10.1 认证与授权
 
-生产默认使用 OIDC 登录，Spring Security 在服务端保存 Session。前端不持有模型、S3 或 MinerU 密钥。Vite 本地开发通过代理访问后端，生产由同一域名提供静态资源和 `/api`，从而减少 CORS 与 Cookie 配置。本地开发连接 OIDC 开发租户；如果团队没有可用 issuer，应在 B0 前先确定身份来源，不临时扩建本地密码账号系统。
+生产使用账号密码登录，Spring Security 在服务端保存 Session。前端不持有模型、S3 或 MinerU 密钥。Vite 本地开发通过代理访问后端，生产由同一域名提供静态资源和 `/api`，从而减少 CORS 与 Cookie 配置。首个管理员由引导环境变量创建；之后由管理员创建用户、禁用账号和重置密码，不开放自助注册。
 
 文档 ACL 使用查看者、编辑者、所有者三种角色，语义直接采用[《整体规划》21.1](./blueprint.md#211-权限继承)。项目成员身份不能提升文档权限。全文、向量、实体和图查询必须在 SQL 中先应用有权文档版本范围，不能先召回再过滤。
 
@@ -612,9 +611,8 @@ SPRING_DATASOURCE_URL
 SPRING_DATASOURCE_USERNAME
 SPRING_DATASOURCE_PASSWORD
 
-OIDC_ISSUER_URI
-OIDC_CLIENT_ID
-OIDC_CLIENT_SECRET
+BOOTSTRAP_ADMIN_USERNAME
+BOOTSTRAP_ADMIN_PASSWORD
 
 S3_ENDPOINT
 S3_REGION
@@ -762,7 +760,7 @@ Actuator 与 Micrometer 至少输出：
 交付：
 
 - 单 Maven 模块、Java 21、Spring Boot/Spring AI、Vue 工程、OpenAPI 类型生成和最小 CI。
-- PostgreSQL、Flyway、OIDC 会话、文档与项目最小权限，Compose 启动 PostgreSQL 与 MinIO。
+- PostgreSQL、Flyway、账号密码会话、文档与项目最小权限，Compose 启动 PostgreSQL 与 MinIO。
 - 文档元数据、TXT/Markdown 资产、S3 预签名上传与完成校验、显式内容提取和不可变版本。
 - `text_unit`、数据库 job、processing run。
 - EDU JSON Schema、Java record、提示模板、`ContextAssembler`、`SourceLocator`、`EduValidator` 及必要回归样本。
@@ -853,7 +851,7 @@ Actuator 与 Micrometer 至少输出：
 每个合并请求都应留下一个可运行检查，避免一次提交整个平台骨架。
 
 1. 建立 Maven Wrapper、Java 21、Spring Boot、Vue、Compose、OpenAPI 类型生成与最小 CI，前后端可启动。
-2. 提交 PostgreSQL/Flyway、OIDC 会话、基础文档与项目权限模型，以及越权访问检查。
+2. 提交 PostgreSQL/Flyway、账号密码会话、基础文档与项目权限模型，以及越权访问检查。
 3. 提交文档元数据接口与 Vue 文档列表、详情页，页面直接读取持久化数据。
 4. 提交 S3 预签名上传、完成校验和 TXT/Markdown 上传表单，资产与文档关联。
 5. 提交数据库 job、processing run、TXT/Markdown 显式提取和固定版本，页面可查看进度，任务可恢复。
@@ -878,7 +876,7 @@ Actuator 与 Micrometer 至少输出：
 | 模型 JSON Schema 能力 | B0 接入模型时 | 配置检查与模型契约测试 |
 | 嵌入模型、维度及区域 | B3 建立向量索引前 | 部署配置、迁移与索引运行记录 |
 | 代码回归样本与后续质量抽样预算 | B0 加入必要回归样本；B2、B3 按验收需要补充 | `evaluation/README.md` 与对应阶段记录 |
-| OIDC issuer 与客户端 | B0 | 部署秘密与运维说明 |
+| 引导管理员账号与密码 | B0 | 部署秘密与运维说明 |
 | S3 endpoint、region、bucket 和凭据 | B0 接入上传前；本地使用 MinIO | 部署配置 |
 | S3 生命周期规则 | B1 | 部署配置 |
 | MinerU 账号、区域、许可和限流 | B1 | 解析器配置与数据边界记录 |

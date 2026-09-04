@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: OntoTrace
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ontotrace}
+    username: ${SPRING_DATASOURCE_USERNAME:ontotrace}
+    password: ${SPRING_DATASOURCE_PASSWORD:ontotrace}
+  flyway:
+    enabled: true
+  ai:
+    openai:
+      api-key: ${AI_API_KEY:dummy}
+      # Spring AI 2.0 官方 SDK 以 base-url 为根，再拼 /chat/completions，兼容网关需自带 /v1
+      base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+      # 默认 60s。EDU 结构化 JSON 经常更慢，超时后完成日志为空、任务失败 Request failed
+      timeout: ${AI_CHAT_TIMEOUT:5m}
+      chat:
+        timeout: ${AI_CHAT_TIMEOUT:5m}
+        model: ${AI_CHAT_MODEL:gpt-4o-mini}
+        max-retries: 0
+        extra-body:
+          enable_thinking: false
+
+server:
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+ontotrace:
+  bootstrap:
+    admin-username: ${BOOTSTRAP_ADMIN_USERNAME:hanbd}
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:change-me}
+  worker:
+    enabled: ${WORKER_ENABLED:true}
+    poll-interval-ms: ${WORKER_POLL_INTERVAL:2000}
+    lease-seconds: ${JOB_LEASE_DURATION:600}
+    max-concurrency: ${WORKER_MAX_CONCURRENCY:4}
+  s3:
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    region: ${S3_REGION:us-east-1}
+    bucket: ${S3_BUCKET:ontotrace}
+    access-key: ${S3_ACCESS_KEY:silo}
+    secret-key: ${S3_SECRET_KEY:silo-dev}
+    path-style-access: ${S3_PATH_STYLE_ACCESS:true}
+  ai:
+    mode: ${AI_MODE:disabled}
+    provider: ${AI_PROVIDER:openai}
+    chat-model: ${AI_CHAT_MODEL:gpt-4o-mini}
+    review-model: ${AI_REVIEW_MODEL:gpt-4o-mini}
+    generate-prompt-version: edu-generate-v1
+    review-prompt-version: edu-review-v1
+    output-schema-version: edu-output-v1

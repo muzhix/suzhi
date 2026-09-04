@@ -1,0 +1,3 @@
+{"id":"loc-exact","target":"六月四日，太宗率长孙无忌……于玄武门诛之。","quote":"于玄武门诛之","contextKey":"target","expect":"exact"}
+{"id":"loc-unit","target":"六月四日，太宗率长孙无忌于玄武门诛之。","quote":"李世民在玄武门发动兵变","contextKey":"target","expect":"unit"}
+{"id":"loc-fail","target":"六月四日，太宗率长孙无忌于玄武门诛之。","quote":"于玄武门诛之","contextKey":"missing","expect":"failed"}

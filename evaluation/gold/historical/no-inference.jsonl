@@ -1,0 +1,2 @@
+{"id":"forbid-motive","text":"李世民因觊觎皇位而发动玄武门之变。","forbidden":true,"reason":"原文未给出觊觎皇位的动机"}
+{"id":"allow-coref","text":"武德九年，李建成和李元吉谋害李世民。","forbidden":false,"reason":"可由上下文补全称谓"}
