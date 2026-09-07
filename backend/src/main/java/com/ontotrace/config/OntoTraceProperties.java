@@ -27,7 +27,7 @@ public class OntoTraceProperties {
     }
 
     /**
-     * 任务工作进程。maxConcurrency 限制本进程同时执行的任务数。
+     * 任务工作进程。maxConcurrency 限制本进程同时执行的任务数，maxAttempts 限制单任务领取次数。
      */
     @Data
     public static class Worker {
@@ -35,6 +35,7 @@ public class OntoTraceProperties {
         private long pollIntervalMs = 2000;
         private long leaseSeconds = 600;
         private int maxConcurrency = 4;
+        private int maxAttempts = 3;
     }
 
     /**

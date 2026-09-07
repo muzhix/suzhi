@@ -37,7 +37,7 @@ public class SourceLocator {
      * @param assembled 组装上下文
      * @param contextKey 模型回显的键
      * @param quote 摘录
-     * @return 定位结果
+     * @return 定位结果，降级时 quote 为空
      */
     public Location locate(ContextAssembler.Assembled assembled, String contextKey, String quote) {
         ContextAssembler.Block block = assembled.blocks().stream()
@@ -48,12 +48,12 @@ public class SourceLocator {
             return new Location(Precision.failed, null, quote, null, null);
         }
         if (quote == null || quote.isBlank()) {
-            return new Location(Precision.unit, block.textUnitId(), quote, null, null);
+            return new Location(Precision.unit, block.textUnitId(), null, null, null);
         }
         int start = block.text().indexOf(quote);
         if (start >= 0) {
             return new Location(Precision.exact, block.textUnitId(), quote, start, start + quote.length());
         }
-        return new Location(Precision.unit, block.textUnitId(), quote, null, null);
+        return new Location(Precision.unit, block.textUnitId(), null, null, null);
     }
 }

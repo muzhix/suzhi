@@ -38,7 +38,7 @@ export function jobStatusLabel(status?: string): string {
 }
 
 /**
- * 提交任务。每次使用新的幂等键，以便覆盖重抽。
+ * 提交任务。不携带客户端幂等键；同参数任务在服务端去重，终态后重跑由服务端按序号新建。
  *
  * @param path 任务接口
  * @param body 可选 JSON
@@ -46,7 +46,6 @@ export function jobStatusLabel(status?: string): string {
 export function startJob(path: string, body?: unknown): Promise<Job> {
   return api<Job>(path, {
     method: 'POST',
-    headers: { 'Idempotency-Key': crypto.randomUUID() },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
 }

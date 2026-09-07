@@ -24,6 +24,24 @@ public interface JobRepository extends ListCrudRepository<Job, UUID> {
     Optional<Job> findByIdempotencyKey(String idempotencyKey);
 
     /**
+     * 查找同参数前缀下仍在执行的任务，用于提交去重。
+     *
+     * @param prefix 幂等键前缀，以冒号结尾
+     * @param statuses 非终态集合
+     * @return 最近一条非终态任务
+     */
+    Optional<Job> findFirstByIdempotencyKeyStartingWithAndStatusInOrderByCreatedAtDesc(
+            String prefix, Collection<String> statuses);
+
+    /**
+     * 统计同参数前缀历史任务数，用于生成重跑序号。
+     *
+     * @param prefix 幂等键前缀，以冒号结尾
+     * @return 条数
+     */
+    long countByIdempotencyKeyStartingWith(String prefix);
+
+    /**
      * 锁定一条可执行任务。必须在事务中调用。
      * 租约过期的 running 任务可被其它进程收回，但不抢本 worker 仍在执行的行。
      *

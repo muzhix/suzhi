@@ -54,15 +54,34 @@ public final class EduJsonMapper {
      *
      * @param json 模型 JSON
      * @param modelId 复核模型
+     * @param tokenInput 输入词元
+     * @param tokenOutput 输出词元
+     * @param latencyMs 延迟
      * @return 复核
      */
-    public static EduModelGateway.EduReviewResult parseReview(String json, String modelId) {
+    public static EduModelGateway.EduReviewResult parseReview(
+            String json, String modelId, int tokenInput, int tokenOutput, long latencyMs) {
         try {
             ReviewPayload payload = MAPPER.readValue(stripFence(json), ReviewPayload.class);
             List<String> flags = payload.flags() == null ? List.of() : payload.flags();
-            return new EduModelGateway.EduReviewResult(payload.passed(), flags, payload.note(), modelId);
+            return new EduModelGateway.EduReviewResult(
+                    payload.passed(), flags, payload.note(), modelId, tokenInput, tokenOutput, latencyMs);
         } catch (Exception ex) {
             throw new IllegalArgumentException("无法解析复核 JSON: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * 序列化任意负载，供处理运行附件使用。
+     *
+     * @param value 负载
+     * @return JSON 文本
+     */
+    public static String write(Object value) {
+        try {
+            return MAPPER.writeValueAsString(value);
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("无法序列化负载", ex);
         }
     }
 

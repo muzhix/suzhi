@@ -100,6 +100,7 @@ public class JobController {
      * @param progress 进度
      * @param total 总量
      * @param documentVersionId 版本标识
+     * @param jobUrl 任务资源地址
      * @param errorSummary 失败摘要
      * @param createdAt 创建时间
      * @param updatedAt 更新时间
@@ -112,6 +113,7 @@ public class JobController {
             Integer progress,
             Integer total,
             String documentVersionId,
+            String jobUrl,
             String errorSummary,
             Instant createdAt,
             Instant updatedAt) {
@@ -124,6 +126,7 @@ public class JobController {
                     job.getProgress(),
                     job.getTotal(),
                     job.getDocumentVersionId() == null ? null : job.getDocumentVersionId().toString(),
+                    "/api/jobs/" + job.getId(),
                     job.getErrorSummary(),
                     job.getCreatedAt(),
                     job.getUpdatedAt());

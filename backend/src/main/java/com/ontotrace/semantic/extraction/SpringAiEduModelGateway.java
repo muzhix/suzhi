@@ -68,12 +68,14 @@ public class SpringAiEduModelGateway implements EduModelGateway {
         String eduJson = EduJsonMapper.toReviewInput(request.edu());
         String system = reviewTemplate.replace("{context}", request.prompt()).replace("{edu}", eduJson);
         CallResult result = complete(system);
-        EduReviewResult parsed = EduJsonMapper.parseReview(result.content(), ai.getReviewModel());
+        long latencyMs = (System.nanoTime() - started) / 1_000_000;
+        EduReviewResult parsed = EduJsonMapper.parseReview(
+                result.content(), ai.getReviewModel(), result.inputTokens(), result.outputTokens(), latencyMs);
         log.info(
                 "edu review mode=live model={} passed={} latencyMs={}",
                 ai.getReviewModel(),
                 parsed.passed(),
-                (System.nanoTime() - started) / 1_000_000);
+                latencyMs);
         return parsed;
     }
 

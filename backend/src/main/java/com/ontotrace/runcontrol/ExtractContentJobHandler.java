@@ -1,9 +1,5 @@
 package com.ontotrace.runcontrol;
 
-import com.ontotrace.document.DocumentVersion;
-import com.ontotrace.document.DocumentVersionRepository;
-import com.ontotrace.document.TextUnit;
-import com.ontotrace.document.TextUnitRepository;
 import com.ontotrace.document.asset.Asset;
 import com.ontotrace.document.asset.AssetRepository;
 import com.ontotrace.document.asset.S3AssetStore;
@@ -17,10 +13,10 @@ import java.util.List;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
- * TXT/Markdown 显式提取，生成不可变版本和文本单元。
+ * TXT/Markdown 显式提取，生成不可变版本和文本单元。S3 下载与解析在数据库事务外执行，
+ * 版本写入由 {@link ExtractContentWriter} 以短事务完成，运行信息记录到处理运行。
  *
  * @author hanbd
  */
@@ -32,9 +28,8 @@ public class ExtractContentJobHandler implements JobHandler {
     private final AssetRepository assets;
     private final S3AssetStore store;
     private final TextDocumentParser parser;
-    private final DocumentVersionRepository versions;
-    private final TextUnitRepository textUnits;
-    private final JobRepository jobs;
+    private final ExtractContentWriter writer;
+    private final ProcessingRunRepository runs;
 
     /**
      * 创建处理器。
@@ -43,25 +38,22 @@ public class ExtractContentJobHandler implements JobHandler {
      * @param assets 资产仓储
      * @param store 对象存储
      * @param parser 文本解析器
-     * @param versions 版本文仓
-     * @param textUnits 文本单元仓储
-     * @param jobs 任务仓储
+     * @param writer 版本写入器
+     * @param runs 处理运行仓储
      */
     public ExtractContentJobHandler(
             UploadService uploads,
             AssetRepository assets,
             S3AssetStore store,
             TextDocumentParser parser,
-            DocumentVersionRepository versions,
-            TextUnitRepository textUnits,
-            JobRepository jobs) {
+            ExtractContentWriter writer,
+            ProcessingRunRepository runs) {
         this.uploads = uploads;
         this.assets = assets;
         this.store = store;
         this.parser = parser;
-        this.versions = versions;
-        this.textUnits = textUnits;
-        this.jobs = jobs;
+        this.writer = writer;
+        this.runs = runs;
     }
 
     /**
@@ -75,62 +67,54 @@ public class ExtractContentJobHandler implements JobHandler {
     }
 
     /**
-     * 下载资产、解析并写入固定版本。
+     * 下载资产、解析并写入固定版本。任务行已带版本标识时说明版本步骤完成过，重试不重复建版本。
      *
      * @param job 任务
      */
     @Override
-    @Transactional
     public void execute(Job job) {
-        if (versions.findFirstByDocumentIdOrderByVersionNoDesc(job.getDocumentId()).isPresent()
-                && "succeeded".equals(job.getStatus())) {
+        if (job.getDocumentVersionId() != null) {
+            log.info("skip finished extraction step jobId={} versionId={}", job.getId(), job.getDocumentVersionId());
             return;
         }
-        UploadSession session = uploads.requireCompleted(job.getDocumentId());
-        Asset asset = assets.findById(session.getAssetId()).orElseThrow();
-        byte[] bytes = store.getObject(asset.getObjectKey());
-        DocumentParser.ParseResult parsed = parser.parse(new DocumentParser.ParseRequest(
-                asset.getObjectKey(), asset.getOriginalFilename(), asset.getContentType(), bytes));
-        if (!"succeeded".equals(parsed.status())) {
-            throw new IllegalStateException(parsed.error());
+        ProcessingRun run = ProcessingRun.builder()
+                .id(UUID.randomUUID())
+                .jobId(job.getId())
+                .provider("builtin")
+                .modelId("text-v1")
+                .status("running")
+                .createdAt(Instant.now())
+                .build();
+        runs.save(run);
+        try {
+            UploadSession session = uploads.requireCompleted(job.getDocumentId());
+            Asset asset = assets.findById(session.getAssetId()).orElseThrow();
+            byte[] bytes = store.getObject(asset.getObjectKey());
+            DocumentParser.ParseResult parsed = parser.parse(new DocumentParser.ParseRequest(
+                    asset.getObjectKey(), asset.getOriginalFilename(), asset.getContentType(), bytes));
+            if (!"succeeded".equals(parsed.status())) {
+                throw new IllegalStateException(parsed.error());
+            }
+            UUID versionId = writer.writeVersion(
+                    job,
+                    job.getDocumentId(),
+                    asset.getId(),
+                    asset.getChecksumSha256(),
+                    "text-v1",
+                    splitUnits(parsed.text()));
+            run.setNew(false);
+            run.setInputDocumentVersionId(versionId);
+            run.setStatus("succeeded");
+            run.setFinishedAt(Instant.now());
+            runs.save(run);
+            log.info("extracted content jobId={} versionId={}", job.getId(), versionId);
+        } catch (Exception ex) {
+            run.setNew(false);
+            run.setStatus("failed");
+            run.setFinishedAt(Instant.now());
+            runs.save(run);
+            throw ex;
         }
-        int nextNo = versions.findByDocumentIdOrderByVersionNoDesc(job.getDocumentId()).stream()
-                .mapToInt(DocumentVersion::getVersionNo)
-                .max()
-                .orElse(0)
-                + 1;
-        UUID versionId = UUID.randomUUID();
-        Instant now = Instant.now();
-        versions.save(DocumentVersion.builder()
-                .id(versionId)
-                .documentId(job.getDocumentId())
-                .assetId(asset.getId())
-                .versionNo(nextNo)
-                .contentFingerprint(asset.getChecksumSha256())
-                .parserId("text-v1")
-                .createdAt(now)
-                .build());
-        List<String> units = splitUnits(parsed.text());
-        int seq = 1;
-        List<TextUnit> rows = new ArrayList<>();
-        for (String unit : units) {
-            rows.add(TextUnit.builder()
-                    .id(UUID.randomUUID())
-                    .documentVersionId(versionId)
-                    .seq(seq++)
-                    .path("p" + (seq - 1))
-                    .displayText(unit)
-                    .pageNo(null)
-                    .build());
-        }
-        textUnits.saveAll(rows);
-        job.setDocumentVersionId(versionId);
-        job.setProgress(rows.size());
-        job.setTotal(rows.size());
-        job.setStage("parsed");
-        job.setUpdatedAt(now);
-        jobs.save(job);
-        log.info("extracted content jobId={} versionId={} units={}", job.getId(), versionId, rows.size());
     }
 
     private static List<String> splitUnits(String text) {

@@ -66,6 +66,16 @@ public interface EduModelGateway {
      * @param flags 疑点类别
      * @param note 说明
      * @param modelId 复核模型
+     * @param tokenInput 输入词元
+     * @param tokenOutput 输出词元
+     * @param latencyMs 延迟
      */
-    record EduReviewResult(boolean passed, List<String> flags, String note, String modelId) {}
+    record EduReviewResult(
+            boolean passed,
+            List<String> flags,
+            String note,
+            String modelId,
+            int tokenInput,
+            int tokenOutput,
+            long latencyMs) {}
 }

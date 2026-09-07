@@ -104,6 +104,12 @@ public class UploadService {
             throw new NotFoundException("上传会话不存在");
         }
         documents.requireEdit(user, session.getDocumentId());
+        if (!"pending".equals(session.getStatus())) {
+            throw new UnprocessableException("上传会话已完成或已失败，不能重复完成");
+        }
+        if (session.getExpiresAt().isBefore(Instant.now())) {
+            fail(session, "上传会话已过期，请重新上传");
+        }
         byte[] bytes;
         try {
             bytes = store.getObject(session.getObjectKey());

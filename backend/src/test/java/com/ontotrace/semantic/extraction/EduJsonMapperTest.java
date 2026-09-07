@@ -64,10 +64,13 @@ class EduJsonMapperTest {
      */
     @Test
     void mapsReview() {
-        EduModelGateway.EduReviewResult result =
-                EduJsonMapper.parseReview("{\"passed\":false,\"flags\":[\"忠实性\"],\"note\":\"quote 不在原文\"}", "qwen");
+        EduModelGateway.EduReviewResult result = EduJsonMapper.parseReview(
+                "{\"passed\":false,\"flags\":[\"忠实性\"],\"note\":\"quote 不在原文\"}", "qwen", 120, 8, 900);
         assertFalse(result.passed());
         assertEquals(List.of("忠实性"), result.flags());
         assertEquals("qwen", result.modelId());
+        assertEquals(120, result.tokenInput());
+        assertEquals(8, result.tokenOutput());
+        assertEquals(900, result.latencyMs());
     }
 }

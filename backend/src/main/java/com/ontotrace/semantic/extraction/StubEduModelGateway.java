@@ -31,13 +31,13 @@ public class StubEduModelGateway implements EduModelGateway {
     }
 
     /**
-     * 复核一律通过。
+     * 复核一律通过，词元与延迟为零。
      *
      * @param request 复核请求
      * @return 通过结果
      */
     @Override
     public EduReviewResult review(EduReviewRequest request) {
-        return new EduReviewResult(true, List.of(), "stub pass", "stub");
+        return new EduReviewResult(true, List.of(), "stub pass", "stub", 0, 0, 0);
     }
 }

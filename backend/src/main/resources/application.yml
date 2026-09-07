@@ -53,6 +53,7 @@ ontotrace:
     poll-interval-ms: ${WORKER_POLL_INTERVAL:2000}
     lease-seconds: ${JOB_LEASE_DURATION:600}
     max-concurrency: ${WORKER_MAX_CONCURRENCY:4}
+    max-attempts: ${WORKER_MAX_ATTEMPTS:3}
   s3:
     endpoint: ${S3_ENDPOINT:http://localhost:9000}
     region: ${S3_REGION:us-east-1}

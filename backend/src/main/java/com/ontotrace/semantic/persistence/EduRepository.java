@@ -42,6 +42,14 @@ public interface EduRepository extends ListCrudRepository<Edu, UUID> {
     boolean existsByDocumentVersionId(UUID documentVersionId);
 
     /**
+     * 统计固定版本下 EDU 条数。
+     *
+     * @param documentVersionId 版本标识
+     * @return 条数
+     */
+    long countByDocumentVersionId(UUID documentVersionId);
+
+    /**
      * 删除固定版本下全部 EDU。
      *
      * @param documentVersionId 版本标识

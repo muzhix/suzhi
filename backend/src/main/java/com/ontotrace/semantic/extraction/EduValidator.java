@@ -4,15 +4,17 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * EDU 确定性校验。
+ * EDU 确定性校验。只执行结构、枚举与来源定位规则；
+ * 忠实性、指代和禁止推断属于模型复核职责，不在本类用词表伪装成语义判断。
  *
  * @author hanbd
  */
 public class EduValidator {
 
+    private static final Set<String> TYPES = Set.of("EVENT", "STATE", "RELATION", "EVALUATION", "RULE");
+    private static final Set<String> TIME_PRECISIONS = Set.of("YEAR", "MONTH", "DAY", "UNKNOWN");
     private static final Set<String> ROLES = Set.of(
             "subject", "object", "participant", "location", "origin", "destination", "instrument", "value", "other");
-    private static final Set<String> FORBIDDEN_MARKERS = Set.of("觊觎皇位", "外部知识", "史书未载");
 
     /**
      * 模型参数。
@@ -71,8 +73,8 @@ public class EduValidator {
      */
     public List<String> validate(ModelEdu edu, boolean locationFailed) {
         List<String> errors = new java.util.ArrayList<>();
-        if (edu.type() == null || edu.type().isBlank()) {
-            errors.add("缺少类型");
+        if (edu.type() == null || !TYPES.contains(edu.type())) {
+            errors.add("非法类型: " + edu.type());
         }
         if (edu.text() == null || edu.text().isBlank()) {
             errors.add("缺少自足表述");
@@ -98,15 +100,16 @@ public class EduValidator {
         if (edu.sources() == null || edu.sources().isEmpty()) {
             errors.add("缺少来源");
         }
+        if (edu.time() != null) {
+            if (edu.time().value() == null || edu.time().value().isBlank()) {
+                errors.add("时间值为空");
+            }
+            if (edu.time().precision() == null || !TIME_PRECISIONS.contains(edu.time().precision())) {
+                errors.add("非法时间精度: " + (edu.time().precision() == null ? "null" : edu.time().precision()));
+            }
+        }
         if (locationFailed) {
             errors.add("来源定位失败");
-        }
-        if (edu.text() != null) {
-            for (String marker : FORBIDDEN_MARKERS) {
-                if (edu.text().contains(marker)) {
-                    errors.add("禁止推断: " + marker);
-                }
-            }
         }
         return errors;
     }
