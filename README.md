@@ -14,14 +14,12 @@ docker compose up -d postgres silo silo-init
 
 # 终端 1：把 .env 导出后再启动，Spring Boot 不会自动读取 .env
 set -a && source .env && set +a
-cd backend
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+./backend/mvnw -f backend/pom.xml spring-boot:run -Dspring-boot.run.profiles=local
 
 # 终端 2
-cd frontend
 corepack enable
-pnpm install --frozen-lockfile
-pnpm dev
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend dev
 ```
 
 浏览器打开 http://localhost:5173 ，应跳转到登录页「登录溯知」。
@@ -55,8 +53,8 @@ live 抽取默认等待 5 分钟（`AI_CHAT_TIMEOUT`）。任务租约默认 10 
 ## 测试
 
 ```bash
-cd backend && ./mvnw verify
+./backend/mvnw -f backend/pom.xml verify
 # 集成测试（Testcontainers，需 Docker）
-cd backend && ./mvnw test -Dtest='*Test,*IT'
-cd ../frontend && pnpm typecheck && pnpm test && pnpm build
+./backend/mvnw -f backend/pom.xml test -Dtest='*Test,*IT'
+pnpm --dir frontend typecheck && pnpm --dir frontend test && pnpm --dir frontend build
 ```
