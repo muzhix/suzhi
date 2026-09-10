@@ -3,6 +3,8 @@
 .idea/
 .vscode/
 *.iml
+graphify-out/
+.zcode/
 
 # backend
 backend/target/

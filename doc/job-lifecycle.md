@@ -118,7 +118,7 @@ FOR UPDATE SKIP LOCKED
 ### extract_edu（`ExtractEduJobHandler`）
 
 1. **先删后写**：删掉范围内已有 EDU 及其来源、论元（全文范围删整个版本，单单元重抽只删该单元的）。这保证了重跑的幂等。
-2. 逐个文本单元：组装上下文 → 模型生成 → 校验和来源定位 → 模型复核 → 写入 `Edu` / `EduSourceRef` / `EduArgument`（复核全过且定位精确才算 `active`，否则 `proposed`）。
+2. 逐个文本单元：组装上下文 → 模型生成 → 校验和来源定位 → 模型复核 → 写入 `Edu` / `EduSourceRef` / `EduArgument`（复核全过且定位精确才算 `active`，否则 `proposed`）。模型复核受 `AI_REVIEW_ENABLED`（`ontotrace.ai.review-enabled`）控制，**默认关闭**：跳过复核调用，`active` 只由确定性条件（无外部知识且定位精确）决定，复核相关字段写空。
 3. 每处理完一个单元回写一次 `progress`。
 
 注意：handler 的 `@Transactional` 包住整个执行过程，但模型调用也在这个事务里，所以长任务会长期占用一个数据库连接。这是 README 提到「并发数要明显小于连接池」的原因。

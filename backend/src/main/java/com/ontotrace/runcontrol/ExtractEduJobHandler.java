@@ -25,6 +25,8 @@ import org.springframework.stereotype.Component;
  * 显式 EDU 抽取：删除范围内旧结果后生成、定位、校验、复核，逐条短事务写入。
  * 模型调用发生在数据库事务外，进度即时提交，崩溃时已写入条目保留；
  * 模型、提示版本、词元、延迟与丢弃输出记录到处理运行。
+ * 复核步骤受 ontotrace.ai.review-enabled 控制，默认关闭：跳过时不调用复核模型，
+ * EDU 状态仅由确定性条件（无外部知识且定位精确）决定，复核字段写空。
  *
  * @author hanbd
  */
@@ -114,7 +116,7 @@ public class ExtractEduJobHandler implements JobHandler {
                     EduModelGateway.EduReviewResult review = persistOne(run.getId(), versionId, assembled, modelEdu);
                     if (review == null) {
                         dropped.add(modelEdu);
-                    } else {
+                    } else if (review != EduModelGateway.SKIPPED) {
                         stats.addReview(review);
                     }
                 }
@@ -136,18 +138,20 @@ public class ExtractEduJobHandler implements JobHandler {
             throw ex;
         }
         log.info(
-                "extracted edu jobId={} versionId={} targetTextUnitId={} units={} dropped={} tokenIn={} tokenOut={}",
+                "extracted edu jobId={} versionId={} targetTextUnitId={} units={} dropped={} reviewEnabled={} tokenIn={} tokenOut={}",
                 job.getId(),
                 versionId,
                 targetId,
                 indexes.size(),
                 stats.dropped,
+                properties.getAi().isReviewEnabled(),
                 stats.tokenInput,
                 stats.tokenOutput);
     }
 
     private ProcessingRun startRun(Job job, UUID versionId, UUID targetId) {
         OntoTraceProperties.Ai ai = properties.getAi();
+        boolean reviewEnabled = ai.isReviewEnabled();
         ProcessingRun run = ProcessingRun.builder()
                 .id(UUID.randomUUID())
                 .jobId(job.getId())
@@ -158,8 +162,8 @@ public class ExtractEduJobHandler implements JobHandler {
                 .modelId(ai.getChatModel())
                 .promptVersion(ai.getGeneratePromptVersion())
                 .outputSchemaVersion(ai.getOutputSchemaVersion())
-                .reviewModelId(ai.getReviewModel())
-                .reviewPromptVersion(ai.getReviewPromptVersion())
+                .reviewModelId(reviewEnabled ? ai.getReviewModel() : null)
+                .reviewPromptVersion(reviewEnabled ? ai.getReviewPromptVersion() : null)
                 .status("running")
                 .createdAt(Instant.now())
                 .build();
@@ -227,8 +231,9 @@ public class ExtractEduJobHandler implements JobHandler {
     /**
      * 校验、定位并写入一条 EDU。全部来源逐条定位：第一条为主要原文，其余为补全上下文；
      * 模型未返回来源时不补造摘录，直接按确定性校验失败丢弃。
+     * 复核关闭时跳过模型调用，EDU 的 active 判定只看确定性条件，复核字段写空。
      *
-     * @return 复核结果；未通过确定性校验时返回 {@code null}
+     * @return 复核结果，复核关闭时为 {@link EduModelGateway#SKIPPED}；未通过确定性校验时返回 {@code null}
      */
     private EduModelGateway.EduReviewResult persistOne(
             UUID runId, UUID versionId, ContextAssembler.Assembled assembled, EduValidator.ModelEdu modelEdu) {
@@ -249,12 +254,21 @@ public class ExtractEduJobHandler implements JobHandler {
             return null;
         }
         SourceLocator.Location primary = locations.getFirst();
-        EduModelGateway.EduReviewResult review =
-                models.review(new EduModelGateway.EduReviewRequest(assembled.prompt(), modelEdu));
-        boolean autoActive = review.passed()
-                && review.flags().isEmpty()
+        boolean reviewEnabled = properties.getAi().isReviewEnabled();
+        EduModelGateway.EduReviewResult review = reviewEnabled
+                ? models.review(new EduModelGateway.EduReviewRequest(assembled.prompt(), modelEdu))
+                : EduModelGateway.SKIPPED;
+        boolean autoActive = (!reviewEnabled || review.passed() && review.flags().isEmpty())
                 && !modelEdu.usedExternalKnowledge()
                 && primary.precision() == SourceLocator.Precision.exact;
+        String reviewResult = null;
+        String reviewNotes = null;
+        if (reviewEnabled) {
+            reviewResult = review.passed() ? "passed" : "flagged";
+            reviewNotes = review.note();
+        } else {
+            log.debug("edu review skipped versionId={}", versionId);
+        }
         Instant now = Instant.now();
         Edu edu = Edu.builder()
                 .id(UUID.randomUUID())
@@ -269,8 +283,8 @@ public class ExtractEduJobHandler implements JobHandler {
                 .revision(1L)
                 .locationPrecision(primary.precision().name())
                 .usedExternalKnowledge(modelEdu.usedExternalKnowledge())
-                .reviewResult(review.passed() ? "passed" : "flagged")
-                .reviewNotes(review.note())
+                .reviewResult(reviewResult)
+                .reviewNotes(reviewNotes)
                 .processingRunId(runId)
                 .createdAt(now)
                 .updatedAt(now)

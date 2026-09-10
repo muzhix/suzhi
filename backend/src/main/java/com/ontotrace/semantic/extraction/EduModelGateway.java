@@ -10,6 +10,11 @@ import java.util.List;
 public interface EduModelGateway {
 
     /**
+     * 复核未启用时的占位结果：不携带模型、词元与延迟，调用方据此跳过复核统计。
+     */
+    EduReviewResult SKIPPED = new EduReviewResult(true, List.of(), null, null, 0, 0, 0);
+
+    /**
      * 生成 EDU。
      *
      * @param request 生成请求

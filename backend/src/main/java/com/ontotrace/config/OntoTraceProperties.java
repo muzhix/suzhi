@@ -52,7 +52,7 @@ public class OntoTraceProperties {
     }
 
     /**
-     * 模型接入。mode 为 disabled、stub 或 live。
+     * 模型接入。mode 为 disabled、stub 或 live。reviewEnabled 单独控制抽取后的模型复核步骤，默认关闭。
      */
     @Data
     public static class Ai {
@@ -60,6 +60,7 @@ public class OntoTraceProperties {
         private String provider = "openai";
         private String chatModel = "gpt-4o-mini";
         private String reviewModel = "gpt-4o-mini";
+        private boolean reviewEnabled = false;
         private String generatePromptVersion = "edu-generate-v1";
         private String reviewPromptVersion = "edu-review-v1";
         private String outputSchemaVersion = "edu-output-v1";

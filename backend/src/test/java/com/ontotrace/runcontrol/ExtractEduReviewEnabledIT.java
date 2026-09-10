@@ -1,9 +1,7 @@
 package com.ontotrace.runcontrol;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.ontotrace.document.Document;
 import com.ontotrace.document.DocumentService;
@@ -21,7 +19,6 @@ import com.ontotrace.semantic.persistence.EduRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -33,14 +30,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * EDU 覆盖式重写、任务幂等与处理运行记录的集成检查。
+ * review-enabled=true 时模型复核链路的集成检查：复核结果写回 EDU，运行记录复核模型与提示版本。
  *
  * @author hanbd
  */
-@SpringBootTest
+@SpringBootTest(properties = "ontotrace.ai.review-enabled=true")
 @ActiveProfiles("test")
 @Testcontainers
-class ExtractEduPersistenceIT {
+class ExtractEduReviewEnabledIT {
 
     @Container
     static final PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg16")
@@ -88,96 +85,36 @@ class ExtractEduPersistenceIT {
     AppUserRepository users;
 
     /**
-     * 全文重跑为覆盖式重写：旧 EDU 物理删除、总行数等于新一轮条数；
-     * 未完成任务重复提交复用同一任务，终态后重跑新建。
+     * stub 复核恒通过：EDU 记为 passed，运行记录回填复核模型与提示版本。
      */
     @Test
-    void rerunReplacesByRewrite() {
+    void reviewResultPersistedWhenEnabled() {
         CurrentUser user = admin();
-        Document document = documents.create(user, "覆盖重写测试", null, null);
-        UUID versionId = newVersion(document.getId(), "太宗率长孙无忌伏兵玄武门。", "皇太子建成、齐王元吉谋害太宗。");
-
-        Job first = jobService.submitEdu(user, versionId, null, null);
-        assertEquals(first.getId(), jobService.submitEdu(user, versionId, null, null).getId());
-        runToCompletion(first);
-        assertEquals(2, edus.findVisible(versionId).size());
-
-        Job second = jobService.submitEdu(user, versionId, null, null);
-        assertNotEquals(first.getId(), second.getId());
-        runToCompletion(second);
-
-        List<Edu> all = versionEdus(versionId);
-        assertEquals(2, all.size());
-        assertEquals(0, all.stream().filter(edu -> "superseded".equals(edu.getStatus())).count());
-        assertEquals(2, edus.findVisible(versionId).size());
-    }
-
-    /**
-     * 局部重跑只删除引用该文本单元的 EDU，未涉及单元的结果保留。
-     */
-    @Test
-    void partialRerunDeletesOnlyCitedEdus() {
-        CurrentUser user = admin();
-        Document document = documents.create(user, "局部重跑测试", null, null);
-        UUID versionId = newVersion(document.getId(), "太宗率长孙无忌伏兵玄武门。", "皇太子建成、齐王元吉谋害太宗。");
-
-        Job full = jobService.submitEdu(user, versionId, null, null);
-        runToCompletion(full);
-        assertEquals(2, edus.findVisible(versionId).size());
-
-        TextUnit secondUnit = textUnits.findByDocumentVersionIdOrderBySeqAsc(versionId).get(1);
-        Job partial = jobService.submitEdu(user, versionId, null, secondUnit.getId());
-        runToCompletion(partial);
-
-        List<Edu> all = versionEdus(versionId);
-        assertEquals(2, all.size());
-        assertEquals(0, all.stream().filter(edu -> "superseded".equals(edu.getStatus())).count());
-        assertEquals(2, edus.findVisible(versionId).size());
-    }
-
-    /**
-     * 抽取运行记录模型、提示版本、输入范围与词元，EDU 回填运行标识。
-     * 复核默认关闭：EDU 复核字段与运行记录的复核模型为空。
-     */
-    @Test
-    void recordsProcessingRun() {
-        CurrentUser user = admin();
-        Document document = documents.create(user, "运行记录测试", null, null);
+        Document document = documents.create(user, "复核开启测试", null, null);
         UUID versionId = newVersion(document.getId(), "太宗率长孙无忌伏兵玄武门。");
 
         Job job = jobService.submitEdu(user, versionId, null, null);
-        runToCompletion(job);
+        Job claimed = jobService.claim("it-worker");
+        assertNotNull(claimed);
+        assertEquals(job.getId(), claimed.getId());
+        jobService.execute(claimed);
+        assertEquals("succeeded", jobRepository.findById(job.getId()).orElseThrow().getStatus());
 
-        ProcessingRun run = runs.findFirstByJobIdOrderByCreatedAtDesc(job.getId()).orElseThrow();
-        assertEquals("succeeded", run.getStatus());
-        assertEquals(versionId, run.getInputDocumentVersionId());
-        assertEquals("all", run.getInputRange());
-        assertEquals("neighbor-1+target", run.getContextStrategy());
-        assertEquals("edu-generate-v1", run.getPromptVersion());
-        assertEquals("stub", run.getModelId());
-        assertNull(run.getReviewModelId());
-        assertNull(run.getReviewPromptVersion());
-        assertNotNull(run.getFinishedAt());
         List<Edu> visible = edus.findVisible(versionId);
         assertEquals(1, visible.size());
-        assertEquals(run.getId(), visible.getFirst().getProcessingRunId());
-        assertEquals("active", visible.getFirst().getStatus());
-        assertNull(visible.getFirst().getReviewResult());
-        assertNull(visible.getFirst().getReviewNotes());
+        Edu edu = visible.getFirst();
+        assertEquals("active", edu.getStatus());
+        assertEquals("passed", edu.getReviewResult());
+        assertEquals("stub pass", edu.getReviewNotes());
+
+        ProcessingRun run = runs.findFirstByJobIdOrderByCreatedAtDesc(job.getId()).orElseThrow();
+        assertEquals("stub", run.getReviewModelId());
+        assertEquals("edu-review-v1", run.getReviewPromptVersion());
     }
 
     private CurrentUser admin() {
         AppUser user = users.findByUsername("admin").orElseThrow();
         return new CurrentUser(user.getId(), user.getUsername(), user.getDisplayName(), user.getPlatformRole());
-    }
-
-    private void runToCompletion(Job job) {
-        Job claimed = jobService.claim("it-worker");
-        assertNotNull(claimed);
-        assertEquals(job.getId(), claimed.getId());
-        jobService.execute(claimed);
-        Job finished = jobRepository.findById(job.getId()).orElseThrow();
-        assertEquals("succeeded", finished.getStatus());
     }
 
     private UUID newVersion(UUID documentId, String... unitTexts) {
@@ -213,11 +150,5 @@ class ExtractEduPersistenceIT {
             seq++;
         }
         return versionId;
-    }
-
-    private List<Edu> versionEdus(UUID versionId) {
-        return StreamSupport.stream(edus.findAll().spliterator(), false)
-                .filter(edu -> versionId.equals(edu.getDocumentVersionId()))
-                .toList();
     }
 }

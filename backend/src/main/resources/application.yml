@@ -66,6 +66,7 @@ ontotrace:
     provider: ${AI_PROVIDER:openai}
     chat-model: ${AI_CHAT_MODEL:gpt-4o-mini}
     review-model: ${AI_REVIEW_MODEL:gpt-4o-mini}
+    review-enabled: ${AI_REVIEW_ENABLED:false}
     generate-prompt-version: edu-generate-v1
     review-prompt-version: edu-review-v1
     output-schema-version: edu-output-v1
