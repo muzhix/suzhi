@@ -1,6 +1,6 @@
 # 溯知（OntoTrace）
 
-文档到 EDU 的研究平台。当前阶段：B0（TXT/Markdown 纵向切片）。
+文档到 EDU 的研究平台。B0（TXT/Markdown 纵向切片）已完成；后续按 B1 起实施。设计见 [blueprint.md](./blueprint.md) 1.14、[dev-landing.md](./dev-landing.md) 0.3。
 
 ## 本地启动
 

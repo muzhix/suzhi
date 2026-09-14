@@ -1,18 +1,22 @@
 # 溯知（OntoTrace）开发落地指南
 
-> 状态：开工基线 0.2（直接从 B0 实施）  
-> 日期：2026-09-03  
-> 上位方案：[blueprint.md](./blueprint.md) 1.13
+> 状态：实施基线 0.3（B0 已完成，后续从 B1 实施）  
+> 日期：2026-09-14  
+> 上位方案：[blueprint.md](./blueprint.md) 1.14
 
 ## 1. 文档用途
 
-本文回答“如何把方案落实为代码”。产品定义、领域语义、质量标准和能力边界以 `blueprint.md` 为准。两份文档出现冲突时，先修订上位方案，再改实现；不要在代码中形成另一套隐含设计。
+本文回答“如何把方案落实为代码”。产品定义、领域语义、质量标准和能力边界以 `blueprint.md` 为准。两份文档出现冲突时，先修订上位方案，再改实现；不要在代码中形成另一套隐含设计。图谱产品形态见上位方案第 10、16.9 章；讨论底稿为 `graph-grok.md`。
 
-仓库当前只有方案和样例材料，没有应用代码、构建文件或数据库迁移。本轮按[《整体规划》阶段 A](./blueprint.md#阶段-aedu-可行性实验)已经完成且通过处理，直接从 B0 开始代码落地，按 B 至 E 的完整功能路线推进。这是本轮实施前提，不代表本文新增了实验结果。
+**B0 已锁定。** 仓库已具备可运行应用：文档库、TXT/Markdown 上传与显式提取、显式 EDU 抽取、阅读器回原文、原文/EDU 基础检索、账号会话与文档 ACL。B0 范围内不再扩大需求。已知缺口不回改 B0 验收，按后续阶段补：
 
-阶段 A 的标注一致性实验、表示方案对照、模型消融、产品价值与经济性验证均不再排期，也不要求补交阶段 A 报告后才能开工。原计划在 A 阶段编写的输出契约、上下文组装、来源定位、确定性校验和模型复核代码并入 B0。现有样本和模型配置可直接复用；缺少归档材料不阻塞应用初始化。
+- 阅读器 EDU 卡片尚未展示角色、谓词、时间（B2）；
+- 项目表已有，前端没有项目入口（C 随实体与事件一并做）；
+- 无 Entity、无图查询、无向量与 RRF（C / B3）。
 
-B 及后续阶段仍需完成各自的功能、权限、数据完整性、质量和性能验收。阶段 A 的通过假设不替代代码正确性检查，也不预先确认 D-scale 的规模验证结论。
+阶段 A 按已验证通过处理。实施顺序仍为 B1 → B2 → B3 → C → D-min → D-scale → E，F 按实际需要启动。不要跳过 B1–B3 先做力导向画布。
+
+B 及后续阶段仍需完成各自的功能、权限、数据完整性、质量和性能验收。B0 通过不替代 B2/B3 质量门，也不预先确认 D-scale 的规模验证结论。
 
 ## 2. 必须继承的设计基线
 
@@ -48,7 +52,7 @@ B 及后续阶段仍需完成各自的功能、权限、数据完整性、质量
 > “EDU 是语义权威记录；实体是跨 EDU 的身份索引；图边来自 EDU 参数和文档级实体链接；原文是最终复核依据。”  
 > ——[《整体规划》10.1 图的定位](./blueprint.md#101-图的定位)
 
-代码不能把派生索引写回权威记录，也不能让图投影拥有独立修改入口。
+代码不能把派生索引写回权威记录，也不能让图投影拥有独立修改入口。图查询只有一种实现，文档/项目/全局三种 scope 只换有权文档版本集合，见[《整体规划》10.8](./blueprint.md#108-图查询范围)。
 
 ## 3. 技术选型
 
@@ -212,9 +216,11 @@ backend/src/main/java/com/ontotrace/
 │   ├── HybridSearchQueries.java
 │   ├── ReciprocalRankFusion.java
 │   └── graph/                                     # [C]
+│       ├── GraphController.java                   # 邻域与统计，只读
 │       ├── GraphRetrievalStrategy.java
 │       ├── FixedHopGraphRetrieval.java
-│       └── LocalPprGraphRetrieval.java
+│       ├── LocalPprGraphRetrieval.java
+│       └── GraphNeighborhoodQueries.java          # 画布/检查器与固定跳共用
 ├── research/                                      # [D/E]
 │   ├── QuestionController.java
 │   ├── QuestionService.java
@@ -387,7 +393,7 @@ interface GraphRetrievalStrategy {
 }
 ```
 
-见[《整体规划》14.5 图检索策略](./blueprint.md#145-图检索策略)。固定跳和局部 PPR 共用该接口；没有图检索时调用方直接跳过，不创建空实现。
+见[《整体规划》14.5 图检索策略](./blueprint.md#145-图检索策略)。固定跳和局部 PPR 共用该接口；没有图检索时调用方直接跳过，不创建空实现。画布和检查器的邻域查询与固定跳共用 `retrieval/graph` 包内的 SQL，不另做一个可替换图引擎。
 
 除此之外，不给单实现类预设接口。S3 开发与生产都使用 AWS SDK，只是 endpoint 和凭据不同，因此先保留一个 `S3AssetStore` 具体类。
 
@@ -409,10 +415,10 @@ interface GraphRetrievalStrategy {
 | B 基础 | `app_user`、`document`、`document_acl`、`asset`、`upload_session`、`project`、`project_member`、`project_document` |
 | B 解析 | `document_version`、`text_unit`、`job`、`processing_run` |
 | B EDU | `edu`、`edu_source_ref`、`edu_argument`、EDU 向量与文本单元向量表 |
-| C 实体 | `entity`、`entity_name`、`project_entity`、`edu_argument_entity_link`、`entity_link_suggestion` |
+| C 实体 | `entity`、`entity_name`、`project_entity`、`edu_argument_entity_link`、`entity_link_suggestion`（均带 `tenant_id` 占位并纳入唯一约束） |
 | E 成果 | `research_artifact`、`artifact_version`、`artifact_reference` |
 
-不建立通用 `node`、`edge`、`review_decision`、`batch` 或 `event_cluster` 表。多选文档操作由前端逐个提交普通任务，界面聚合显示结果。
+不建立通用 `node`、`edge`、`review_decision`、`batch` 或 `event_cluster` 表。未链接显示节点和事件组都是查询投影。多选文档操作由前端逐个提交普通任务，界面聚合显示结果。阶段 C 不为 `edu` / `edu_argument` / `edu_source_ref` 加字段。
 
 ### 6.2 数据类型与命名
 
@@ -488,6 +494,8 @@ POST   /api/entities/{entityId}/merge-preview
 POST   /api/document-versions/{versionId}/entity-link-jobs
 PATCH  /api/edu-argument-links/{linkId}
 POST   /api/entity-link-suggestions
+GET    /api/graph/neighborhood
+GET    /api/graph/stats
 
 # 阶段 D
 POST   /api/questions
@@ -539,11 +547,17 @@ GET    /api/artifacts/{artifactId}/export.md
 /documents/:documentId/versions/:versionId/read
 /projects/:projectId
 /projects/:projectId/search
+/projects/:projectId/graph                            # [C]
+/entities                                            # [C] 实体列表
 /entities/:entityId                                  # [C]
+/events                                              # [C] 事件列表
 /events/:eduId                                       # [C]
+/graph                                               # [C] 全局图，scope=有权文档
 /projects/:projectId/questions/:questionId            # [D]
 /projects/:projectId/artifacts/:artifactId             # [E]
 ```
+
+「实体与事件」三个并列视图对应 `/graph`、`/entities`、`/events`；有项目时默认打开 `/projects/:projectId/graph`。图谱页把 `scope`、选中节点、跳数、着色模式和筛选写入 URL。`GET /api/graph/neighborhood` 的 `scope` 为 `document` | `project` | `global`，只读，不提供写边接口。
 
 文档版本、范围、当前实体过滤等可分享状态写入 URL。弹窗开关、输入焦点等瞬时状态留在组件内。服务端资源只保存在 TanStack Vue Query 缓存中。
 
@@ -559,6 +573,8 @@ GET    /api/artifacts/{artifactId}/export.md
 4. 无 EDU 时仍显示原文，并提供带当前范围参数的“前往文档库抽取”链接。
 5. 编辑 Active EDU 时创建替代版本，不静默覆盖。
 6. 结构化字段默认折叠，选择 EDU 后展开。
+7. **B2 补齐**：卡片可见自足表述、状态、主要谓词和角色；B0 已写入 `edu_argument`，不要为展示再加表。
+8. **C**：提供「在图中查看本版本」。
 
 ### 9.3 Query 与 Pinia 的分工
 
@@ -573,6 +589,7 @@ GET    /api/artifacts/{artifactId}/export.md
 - EDU 与原文高亮不能只用颜色表达，需同时提供边框、图标或文字。
 - 引用点击后先显示原文、版本和位置，再显示 EDU 与补全说明，遵守[《整体规划》15.2](./blueprint.md#152-引用粒度)。
 - 流式回答使用 `aria-live="polite"`，不要让每个 token 都触发独立播报。
+- 图谱画布必须有文字描述；搜索、筛选、检查器和实体页是等价无障碍路径。图不能只靠颜色区分节点和边。
 
 ## 10. 权限、安全与外部数据
 
@@ -588,6 +605,8 @@ GET    /api/artifacts/{artifactId}/export.md
 - 项目成员没有文档权限时，项目查询中不会出现该文档结果。
 - 查看者只能提交实体链接纠错建议，不能改链。
 - 预签名下载 URL 只能在权限检查后签发，且不写入日志。
+- 无权文档版本的 EDU 和链接不出现在图邻域结果里，也不进入 `/api/graph/stats`（先过滤再聚合）。
+- 某实体在当前 scope 内全部关联 EDU 都无权时，该实体不出现在邻域或统计中。
 
 ### 10.2 模型与解析器数据边界
 
@@ -670,7 +689,8 @@ evaluation/reports/phase-d-*.md
 5. 数据库不变量：固定文档版本、修订冲突、拒绝/替代状态。
 6. 检索：全文与 EDU 双通道、RRF、权限过滤和无 EDU 回退。
 7. 实体链接：冷启动、项目关注实体为空、项目关注实体不改变自动链接结论。
-8. 问答引用：回答引用可回到当前用户有权的固定版本原文。
+8. 图邻域：三种 scope、未链接显示节点、无权 EDU/实体不出现、统计先过滤再聚合。
+9. 问答引用：回答引用可回到当前用户有权的固定版本原文。
 
 不要为纯 getter、record 或框架映射编写镜像测试。外部客户端用一个成功和一个失败契约测试即可；不复制供应商 SDK 的测试。
 
@@ -678,8 +698,8 @@ evaluation/reports/phase-d-*.md
 
 Playwright 每阶段只保留新增的关键链路：
 
-- B：导入 TXT → 显式提取 → 显式抽取 EDU → 阅读器查看并定位原文。
-- C：打开实体页 → 查看来源限定关系 → 编辑者改链后图结果更新。
+- B：导入 TXT → 显式提取 → 显式抽取 EDU → 阅读器查看并定位原文；B2 起卡片可见角色。
+- C：打开实体页 → 查看来源限定关系 → 从画布或检查器回到原文；编辑者改链后图结果更新；无权用户看不到无权 EDU 和空壳实体。
 - D：提问 → 流式回答 → 点击引用回到原文。
 - E：保存提纲或文章 → 导出 Markdown 与引用清单。
 
@@ -687,7 +707,7 @@ Playwright 每阶段只保留新增的关键链路：
 
 退出标准直接引用[《整体规划》22.6 首期质量门](./blueprint.md#226-首期质量门)中 B 及后续阶段的要求。阶段 A 的质量门和继续实施决策按已通过处理，不再作为开工门禁；其中涉及来源、角色和禁止推断的规则仍需由回归测试保护。
 
-B0 先验收端到端链路、权限、固定版本、来源定位和任务恢复；B2、B3 完成阶段 B 的质量门 2、3、8、9。后续各阶段在开始前记录适用门槛、样本集、模型、预算和停止条件，数值阈值使用已有基线或该阶段代表性样本确定，不依赖补做 A 阶段实验。
+B0 已验收端到端链路、权限、固定版本、来源定位和任务恢复。B2、B3 完成阶段 B 的质量门 2、3、8、9。后续各阶段在开始前记录适用门槛、样本集、模型、预算和停止条件，数值阈值使用已有基线或该阶段代表性样本确定。
 
 ## 13. 本地开发、CI 与部署
 
@@ -749,26 +769,19 @@ Actuator 与 Micrometer 至少输出：
 
 ## 14. 分阶段落地计划
 
-本计划从[《整体规划》阶段 B](./blueprint.md#阶段-b文档到-edu-的最短闭环)开始细化实施。阶段 A 按已验证通过处理，不安排 A0、A1、A2 工作包，不再以其报告或路线选择作为前置任务。实施顺序为 B0 → B1 → B2 → B3 → C → D-min → D-scale → E，F 按实际需要启动。
+本计划从[《整体规划》阶段 B](./blueprint.md#阶段-b文档到-edu-的最短闭环)细化实施。阶段 A 按已验证通过处理。B0 已完成，不再作为开工包。实施顺序为 B1 → B2 → B3 → C → D-min → D-scale → E，F 按实际需要启动。
 
 后续阶段保留上位方案的退出条件；如实际运行和验收发现问题，再按第 23 章的 L2～L4 调整范围。日历时间需要结合开发人数、模型预算和外部服务配额另行排期；这里以可验收工作包为单位。
 
-### 14.1 B0：应用初始化与 TXT/Markdown 纵向切片
+### 14.1 B0：应用初始化与 TXT/Markdown 纵向切片（已完成）
 
 目标：先贯通最小真实产品链路，再扩格式与批量能力。
 
-交付：
+已交付：单模块后端与 Vue 应用、PostgreSQL/Flyway/MinIO、文档与项目表及 ACL、TXT/Markdown 预签名上传、显式内容提取与不可变版本、job 与 processing run、EDU schema/抽取/校验/复核/持久化、阅读器回原文、原文与 EDU 基础检索、最小 CI。
 
-- 单 Maven 模块、Java 21、Spring Boot/Spring AI、Vue 工程、OpenAPI 类型生成和最小 CI。
-- PostgreSQL、Flyway、账号密码会话、文档与项目最小权限，Compose 启动 PostgreSQL 与 MinIO。
-- 文档元数据、TXT/Markdown 资产、S3 预签名上传与完成校验、显式内容提取和不可变版本。
-- `text_unit`、数据库 job、processing run。
-- EDU JSON Schema、Java record、提示模板、`ContextAssembler`、`SourceLocator`、`EduValidator` 及必要回归样本。
-- 单文档显式 EDU 抽取、独立模型复核、状态与持久化；记录模型、提示版本、参数、token、费用和延迟，复核不改写生成结果。
-- 原文与 EDU 基础文本检索，先保证权限过滤和无 EDU 时可查原文；向量与 RRF 在 B3 完成。
-- Vue 文档列表、详情、任务进度和三栏阅读器。
+锁定：不回改 B0 已验收范围。阅读器未展示的角色字段、项目前端入口、Entity 与图，分别归 B2 与 C。
 
-退出：一份 TXT 能从上传、显式提取、显式抽取走到 Active/Proposed EDU，并从 EDU 精确回到原文；重启应用后任务与页面状态可恢复，未授权用户不能访问相关文档、EDU 和任务。所有产物直接进入应用代码和正常 CI，不另交实验工程或阶段 A 报告。
+退出条件当时已满足：一份 TXT 能从上传、显式提取、显式抽取走到 Active/Proposed EDU，并从 EDU 精确回到原文；任务可恢复；未授权用户不能访问相关文档、EDU 和任务。
 
 ### 14.2 B1：PDF 解析与批量文件处理
 
@@ -793,8 +806,9 @@ Actuator 与 Micrometer 至少输出：
 - 自动采用规则版本、通过桶/疑点桶抽样和高影响队列。
 - EDU 编辑、拒绝、替代、修订冲突和重复候选簇。
 - 模型结论被人工覆盖的审计记录。
+- 阅读器 EDU 卡片展示自足表述、状态、主要谓词、角色；选中后展开时间、补全和来源精度。使用已有 `edu_argument`，不加表。
 
-退出：满足阶段 B 的质量门 2、3、8、9；错误输出不会进入默认检索。
+退出：满足阶段 B 的质量门 2、3、8、9；错误输出不会进入默认检索；用户能在阅读器里看到将要画到图上的角色。
 
 ### 14.4 B3：双通道检索与阶段验收
 
@@ -811,22 +825,26 @@ Actuator 与 Micrometer 至少输出：
 
 ### 14.5 C：实体关联图
 
-按上位方案顺序加入共享 Entity、别称、未链接值、文档级实体链接和纠错建议。先做固定跳和实体页；局部 PPR 作为实验实现，未通过消融前不自动启用。
+按[《整体规划》阶段 C](./blueprint.md#阶段-c实体关联图)加入共享 Entity、文档级链接和图谱浏览。先做链接质量，再做列表/检查器/统计，力导向画布放最后。局部 PPR 作为实验实现，未通过消融前不自动启用。阶段 C 不为 EDU 侧加字段。
 
 开发顺序：
 
-1. Entity 与名称表、冷启动种子和候选匹配。
-2. 文档级参数链接、修订控制、改链与纠错建议。
-3. 由 EDU 参数和链接查询图，不建立通用边表。
-4. 实体页、事件页和叙事序时间线。
-5. 固定跳检索。
-6. 局部 PPR 实验及三组消融。
+1. Entity 与名称表（`tenant_id` 占位并纳入唯一约束）、冷启动种子和候选匹配。
+2. 文档级参数链接、修订控制、改链与纠错建议；链接审计能区分自动/人工。
+3. 由 EDU 参数和链接查询图：邻域 API 与统计 API，不建立通用边表。`scope=document|project|global` 只换有权文档版本集合。未链接参数作为显示节点返回。
+4. 实体页、事件页、叙事序时间线，以及图谱页的列表/统计/搜索/检查器；共享 EDU 卡片和来源引用组件。实体页内嵌一跳小图并与画布互跳。
+5. 力导向画布：只读、默认一跳、节点硬顶（建议 500）与截断提示、类型/来源两种着色、未链接节点弱化。EDU 节点用短标签，完整表述进检查器。不画 EDU–EDU 边。不提供图上改边。
+6. 固定跳检索，与邻域查询共用后端。
+7. 局部 PPR 实验及三组消融。
+8. 项目前端入口与项目页顶区统计（表在 B0 已有）。
 
-退出：满足质量门 11、12；关注实体为空时链路可用，关注实体变化不改变自动链接结论。
+退出：满足质量门 11、12、13；关注实体为空时链路和画布可用；三种 scope 同一套查询；无权 EDU 与空壳实体不出现。
+
+图 API 首期用实时 SQL（JOIN / 递归 CTE + LIMIT），万级文档实测慢再物化。前端图库是展示层选择，不改变 `GraphRetrievalStrategy`，也不引入图数据库。事件组用查询时聚合，不建 `event_cluster`。
 
 ### 14.6 D-min：有据问答
 
-交付原文、EDU、实体三通道召回，偏召回筛选、回答流、引用展开、冲突并陈和检索范围提示。先完成问题资源与 SSE，再引入 AI Elements Vue 的必要组件。
+交付原文、EDU、实体三通道召回，偏召回筛选、回答流、引用展开、冲突并陈和检索范围提示。图只提供候选和解释路径。先完成问题资源与 SSE，再引入 AI Elements Vue 的必要组件。全局 ⌘K 可在本阶段与问答入口一并考虑，不并进 C 的图内搜索。
 
 退出：单篇和跨文档题集达到第 22.4 节门槛；无 EDU 时仍能直接使用原文回答并提示覆盖缺口。
 
@@ -846,24 +864,36 @@ Actuator 与 Micrometer 至少输出：
 
 只从[《整体规划》第 25 章](./blueprint.md#25-延后能力及引入条件)选择已经满足引入条件的能力。每项增强先提交失败样本、基线、目标收益和停止条件，再写产品代码。
 
-## 15. 建议的首批合并顺序
+## 15. 建议的后续合并顺序
 
-每个合并请求都应留下一个可运行检查，避免一次提交整个平台骨架。
+B0 的 12 个合并请求已经落地，不再重复。每个后续合并请求仍应留下一个可运行检查。
 
-1. 建立 Maven Wrapper、Java 21、Spring Boot、Vue、Compose、OpenAPI 类型生成与最小 CI，前后端可启动。
-2. 提交 PostgreSQL/Flyway、账号密码会话、基础文档与项目权限模型，以及越权访问检查。
-3. 提交文档元数据接口与 Vue 文档列表、详情页，页面直接读取持久化数据。
-4. 提交 S3 预签名上传、完成校验和 TXT/Markdown 上传表单，资产与文档关联。
-5. 提交数据库 job、processing run、TXT/Markdown 显式提取和固定版本，页面可查看进度，任务可恢复。
-6. 提交文本单元读取与原文阅读器，校验固定版本和文本位置。
-7. 提交 EDU JSON Schema、Java record、上下文组装与必要回归样本，复用已有样本和配置。
-8. 接入生成模型、来源定位和确定性校验，记录模型及提示版本、费用和延迟。
-9. 接入独立复核提示与结果判定，生成结果和复核结果分别保存。
-10. 提交 EDU 持久化、状态和显式抽取任务，串联生成、校验、复核与幂等写入。
-11. 提交阅读器 EDU 面板、来源引用和原文高亮，支持无 EDU 空状态。
-12. 提交带权限过滤的原文/EDU 基础检索与主链路 Playwright 检查，完成 B0 验收。
+B1：
 
-首个合并请求即可开始产品工程建设。B0 完成后按 B1～B3 继续扩展解析、质量闭环和检索，不插入 A 阶段对照工具、标注任务或审批门禁。
+1. 预签名 GET、临时对象清理和多文件处理。
+2. MinerU 适配、归档与文本/OCR PDF 版本。
+3. 多选任务汇总进度。
+
+B2：
+
+4. 自动采用规则、抽样队列与人工覆盖审计。
+5. EDU 编辑、拒绝、替代与重复候选簇。
+6. 阅读器展示谓词、角色和时间。
+
+B3：
+
+7. 规范检索文本、向量、RRF 与权限过滤验收。
+
+C：
+
+8. Entity 表（含 `tenant_id`）、名称表和冷启动匹配。
+9. 文档级链接、改链、纠错建议与 merge-preview。
+10. 邻域查询、统计和权限测试。
+11. 实体页、事件页、检查器和图谱列表/统计。
+12. 只读画布、三种 scope、未链接显示节点。
+13. 固定跳与项目前端入口；PPR 实验单独合并。
+
+首个 C 合并即可开始实体表，不要一次提交画布加链接加 PPR。B0 完成后按 B1～B3 继续，不插入 A 阶段对照工具、标注任务或审批门禁。
 
 ## 16. 按接入顺序固定的外部参数
 
@@ -896,4 +926,4 @@ Actuator 与 Micrometer 至少输出：
 - README 包含从空环境启动到验证本阶段主链路的命令。
 - 本阶段验收记录保存测试结果；涉及模型质量或规模验收时，同时保存样本范围、配置、指标、失败案例和继续/停止结论。
 
-首版有意不包含微服务、Kafka、Quartz、通用图表、专用搜索/向量/图数据库、项目级 EDU、事件簇、查询时按需 EDU、DOCX 导出和复杂审批系统。只有[《整体规划》第 25 章](./blueprint.md#25-延后能力及引入条件)中的条件已经被真实数据满足时，才新增其中某项能力。
+首版有意不包含微服务、Kafka、Quartz、通用图表、专用搜索/向量/图数据库、项目级 EDU、事件簇、查询时按需 EDU、画布 EDU–EDU 边、实体综述生成、DOCX 导出和复杂审批系统。只有[《整体规划》第 25 章](./blueprint.md#25-延后能力及引入条件)中的条件已经被真实数据满足时，才新增其中某项能力。
