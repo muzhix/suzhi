@@ -1,7 +1,7 @@
 # 图谱与 EDU 关联分析（graph-k3）
 
 > 日期：2026-09-10
-> 状态：产品分析稿（未评审）
+> 状态：产品分析稿（未评审）。阶段顺序以 `blueprint.md` 1.15 / `dev-landing.md` 0.5 为准：B0 后先做 B1 全书结构，图谱仍在 C；本文不改实施顺序。
 > 输入：`blueprint.md` 1.13、`dev-landing.md` 0.2、B0 代码现状、graphify 开源仓库（Graphify-Labs/graphify）、app.graphify.com 实测（workspace：hanbd，已索引 suzhi 与 inference 两个仓库）、本仓库 `graphify-out/GRAPH_REPORT.md`（graphify CLI 对 suzhi 代码库的实际构建产物）
 
 ## 1. 背景与问题

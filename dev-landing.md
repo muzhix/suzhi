@@ -1,20 +1,23 @@
 # 溯知（OntoTrace）开发落地指南
 
-> 状态：实施基线 0.3（B0 已完成，后续从 B1 实施）  
-> 日期：2026-09-14  
-> 上位方案：[blueprint.md](./blueprint.md) 1.14
+> 状态：实施基线 0.5（B0 已完成，后续从 B1 实施）  
+> 日期：2026-09-15  
+> 上位方案：[blueprint.md](./blueprint.md) 1.15
 
 ## 1. 文档用途
 
-本文回答“如何把方案落实为代码”。产品定义、领域语义、质量标准和能力边界以 `blueprint.md` 为准。两份文档出现冲突时，先修订上位方案，再改实现；不要在代码中形成另一套隐含设计。图谱产品形态见上位方案第 10、16.9 章；讨论底稿为 `graph-grok.md`。
+本文回答“如何把方案落实为代码”。产品定义、领域语义、质量标准和能力边界以 `blueprint.md` 为准。两份文档出现冲突时，先修订上位方案，再改实现；不要在代码中形成另一套隐含设计。图谱产品形态见上位方案第 10、16.9 章；讨论底稿为 `graph-grok.md`。文本单元粒度见 `pinggu-grok.md`。全书结构、目录树与阅读器见 `textunit.md`。
 
 **B0 已锁定。** 仓库已具备可运行应用：文档库、TXT/Markdown 上传与显式提取、显式 EDU 抽取、阅读器回原文、原文/EDU 基础检索、账号会话与文档 ACL。B0 范围内不再扩大需求。已知缺口不回改 B0 验收，按后续阶段补：
 
+- 全书 txt 没有卷/纪/年目录，`path` 为 `p1`、`p2`，阅读器不是三栏目录树（B1）；
 - 阅读器 EDU 卡片尚未展示角色、谓词、时间（B2）；
+- `ContextAssembler` 只拼前一个单元，无所属篇章、无后文、无重叠目标（B2）；
 - 项目表已有，前端没有项目入口（C 随实体与事件一并做）；
-- 无 Entity、无图查询、无向量与 RRF（C / B3）。
+- 无 Entity、无图查询、无向量与 RRF（C / B3）；
+- 无 PDF / MinerU / OCR（阶段 P，排在写作之后）。
 
-阶段 A 按已验证通过处理。实施顺序仍为 B1 → B2 → B3 → C → D-min → D-scale → E，F 按实际需要启动。不要跳过 B1–B3 先做力导向画布。
+阶段 A 按已验证通过处理。实施顺序为 B1 → B2 → B3 → C → D-min → D-scale → E → P → F。B1 是全书结构与阅读器，不要先做 MinerU。不要跳过 B1–B3 先做力导向画布。
 
 B 及后续阶段仍需完成各自的功能、权限、数据完整性、质量和性能验收。B0 通过不替代 B2/B3 质量门，也不预先确认 D-scale 的规模验证结论。
 
@@ -70,7 +73,7 @@ B 及后续阶段仍需完成各自的功能、权限、数据完整性、质量
 | 数据库 | PostgreSQL 16+、pgvector、`pg_trgm` | 同库保存业务数据和向量；中文全文方案在阶段 B 基准后确定 |
 | 迁移 | Flyway | 迁移只前进，不在共享环境修改已执行脚本 |
 | 对象存储 | S3 兼容存储、AWS SDK for Java 2.x | 生产可用 AWS S3；本地使用 MinIO；浏览器预签名直传 |
-| 文档解析 | `DocumentParser` + MinerU Web API | TXT/Markdown 走内置同步导入器；其他格式先接 MinerU |
+| 文档解析 | 内置 TXT/Markdown 导入器；结构方案在 B1 | PDF/Office/图片/HTML 在阶段 P 接 MinerU；B1 不引入外部解析服务 |
 | 认证 | Spring Security、账号密码、服务端 Session | SPA 与 API 同源部署；使用 HttpOnly/Secure/SameSite Cookie 和 CSRF 防护，不自建 JWT 或 OIDC |
 | OpenAPI | springdoc-openapi 3.1.0 | 后端生成 OpenAPI 3；前端不手写重复 DTO |
 | Node.js | Node.js 24 LTS | 写入 `.node-version`；只用于前端构建和工具链 |
@@ -133,6 +136,8 @@ AI Elements Vue 到阶段 D 再按组件安装。它会把组件源码写进仓�
 project-suzhi/
 ├── blueprint.md
 ├── dev-landing.md
+├── textunit.md                       # 全书结构需求；B1 来源
+├── pinggu-grok.md                    # Text Unit 粒度评估
 ├── README.md                         # [B0] 本地命令、配置入口、阶段状态
 ├── .editorconfig                     # [B0]
 ├── .gitignore
@@ -187,7 +192,10 @@ backend/src/main/java/com/ontotrace/
 │   └── parser/
 │       ├── DocumentParser.java
 │       ├── TextDocumentParser.java
-│       └── MineruWebApiDocumentParser.java
+│       ├── structure/                                 # [B1]
+│       │   ├── StructureProfile.java
+│       │   └── TextStructureParser.java
+│       └── MineruWebApiDocumentParser.java            # [P] 勿提前创建
 ├── semantic/                                      # [B]
 │   ├── EduController.java                         # [B]
 │   ├── EduService.java                 # [B]
@@ -195,7 +203,7 @@ backend/src/main/java/com/ontotrace/
 │   ├── EduArgument.java
 │   ├── EduSourceReference.java
 │   ├── context/
-│   │   └── ContextAssembler.java
+│   │   └── ContextAssembler.java                  # [B2] Section、前后邻接、合并 Target
 │   ├── extraction/
 │   │   ├── EduModelGateway.java
 │   │   ├── SpringAiEduModelGateway.java
@@ -372,7 +380,7 @@ interface DocumentParser {
 }
 ```
 
-见[《整体规划》17.7 文档解析器](./blueprint.md#177-文档解析器)。TXT/Markdown 与 MinerU 已经是两个真实实现，因此该接口有必要存在。
+见[《整体规划》17.7 文档解析器](./blueprint.md#177-文档解析器)。B0/B1 只有文本导入器。第二实现在阶段 P 接入 MinerU 时再写适配器；在此之前不要为 PDF 预留空类。
 
 第二，模型网关只暴露平台语义，不泄漏 Spring AI 类型：
 
@@ -418,7 +426,7 @@ interface GraphRetrievalStrategy {
 | C 实体 | `entity`、`entity_name`、`project_entity`、`edu_argument_entity_link`、`entity_link_suggestion`（均带 `tenant_id` 占位并纳入唯一约束） |
 | E 成果 | `research_artifact`、`artifact_version`、`artifact_reference` |
 
-不建立通用 `node`、`edge`、`review_decision`、`batch` 或 `event_cluster` 表。未链接显示节点和事件组都是查询投影。多选文档操作由前端逐个提交普通任务，界面聚合显示结果。阶段 C 不为 `edu` / `edu_argument` / `edu_source_ref` 加字段。
+不建立通用 `node`、`edge`、`review_decision`、`batch`、`event_cluster` 或 `chapter` 表。卷、纪、年写入 `text_unit.path`，目录树由 path 聚合。结构方案预置放在版本库，用户调整后的快照随 `processing_run` 保存。未链接显示节点和事件组都是查询投影。多选文档操作由前端逐个提交普通任务，界面聚合显示结果。阶段 C 不为 `edu` / `edu_argument` / `edu_source_ref` 加字段。
 
 ### 6.2 数据类型与命名
 
@@ -469,10 +477,13 @@ POST   /api/uploads/{uploadId}/complete
 POST   /api/documents
 GET    /api/documents
 GET    /api/documents/{documentId}
-POST   /api/documents/{documentId}/extraction-jobs
+GET    /api/structure-schemes                                   # [B1] 预置方案列表
+POST   /api/documents/{documentId}/extraction-previews          # [B1] 试解析，不写版本
+POST   /api/documents/{documentId}/extraction-jobs             # 确认结构方案后才写版本
 GET    /api/document-versions/{versionId}
-GET    /api/document-versions/{versionId}/text-units
-POST   /api/document-versions/{versionId}/edu-jobs
+GET    /api/document-versions/{versionId}/outline               # [B1] path 聚合目录树
+GET    /api/document-versions/{versionId}/text-units            # B1 起可按 path 前缀过滤
+POST   /api/document-versions/{versionId}/edu-jobs             # B1 起范围可含 path 前缀
 GET    /api/document-versions/{versionId}/edus
 PATCH  /api/edus/{eduId}
 POST   /api/edus/{eduId}/replacements
@@ -483,7 +494,7 @@ GET    /api/projects/{projectId}
 POST   /api/projects/{projectId}/documents
 ```
 
-完成上传时，服务端必须通过 S3 `HEAD` 或对象属性重新校验对象、大小和强校验和，并通过允许列表和文件特征判断媒体类型，不能信任浏览器提交的 `Content-Type`。多选文档不增加批次接口；前端为每份文档调用同一个任务接口。
+完成上传时，服务端必须通过 S3 `HEAD` 或对象属性重新校验对象、大小和强校验和，并通过允许列表和文件特征判断媒体类型，不能信任浏览器提交的 `Content-Type`。多选文档不增加批次接口；前端为每份文档调用同一个任务接口。B0 的 EDU 任务范围是全文或单个文本单元。B1 起可按 path 前缀抽取本卷/本篇/本年，不新增任务类型或篇章资源。无结构方案的短 txt 仍可空行切段并立即提取，避免结构方案挡住玄武门切片。全书默认不得一键全文抽取 EDU，须选到卷或更细，或明确勾选并看到预算。
 
 ### 7.3 后续接口
 
@@ -506,6 +517,9 @@ POST   /api/artifacts
 GET    /api/artifacts/{artifactId}
 POST   /api/artifacts/{artifactId}/versions
 GET    /api/artifacts/{artifactId}/export.md
+
+# 阶段 P
+# 不新增文档资源类型；仍走 extraction-jobs，解析器换成 MinerU
 ```
 
 `POST /api/questions` 使用 `application/x-ndjson` 分块返回 `meta`、`delta`、`citation`、`complete` 或 `error` 事件，完成后可通过 GET 读取持久化结果。前端用 `openapi-fetch` 的流响应和浏览器 `ReadableStream` 逐行解析，不增加另一套实时协议库。任务进度仍按[《整体规划》19.5](./blueprint.md#195-任务进度接口)轮询 `/jobs/{jobId}`，不与生成内容流混用。
@@ -518,7 +532,7 @@ GET    /api/artifacts/{artifactId}/export.md
 
 1. 在短事务中用 `FOR UPDATE SKIP LOCKED` 领取一条到期任务。
 2. 写入 `RUNNING`、租约到期时间和 worker 标识后提交事务。
-3. 在事务外调用 MinerU、模型或 S3。
+3. 在事务外调用模型或 S3；阶段 P 起包括 MinerU。
 4. 按可恢复批次写入已验证产物，并刷新租约和进度。
 5. 成功后写终态；可重试错误按退避时间重排；永久错误写失败摘要。
 
@@ -544,7 +558,7 @@ GET    /api/artifacts/{artifactId}/export.md
 ```text
 /documents
 /documents/:documentId
-/documents/:documentId/versions/:versionId/read
+/documents/:documentId/versions/:versionId/read      # URL 保存 path 与选中 unit
 /projects/:projectId
 /projects/:projectId/search
 /projects/:projectId/graph                            # [C]
@@ -563,18 +577,23 @@ GET    /api/artifacts/{artifactId}/export.md
 
 ### 9.2 阅读与 EDU 工作台
 
-工作台直接落实[《整体规划》16.4](./blueprint.md#164-阅读与-edu-工作台)的三栏布局：左侧目录与文本单元，中间固定版本原文，右侧 EDU。用 CSS Grid 完成布局；窄屏下改为原文与 EDU 两个可切换面板，不引入布局库。
+工作台直接落实[《整体规划》16.4](./blueprint.md#164-阅读与-edu-工作台)的三栏布局：**左侧章节目录树**（由 `path` 聚合）、中间当前节点下的原文各段、右侧 EDU。用 CSS Grid 完成布局。窄屏下目录可收起，原文与 EDU 两个可切换面板。点目录只换可见范围；一次只渲染当前 path 前缀下的 unit，避免整部书进 DOM。不要在内容区再写「文本单元」这类页面级标题。
 
-最先完成以下交互：
+B1 最先完成：
 
-1. 根据 URL 打开固定版本和文本范围。
-2. 点击 EDU 后高亮全部主要原文和补全上下文。
-3. 来源定位精度为降级时，明确显示“文本单元级”或“页面级”。
-4. 无 EDU 时仍显示原文，并提供带当前范围参数的“前往文档库抽取”链接。
-5. 编辑 Active EDU 时创建替代版本，不静默覆盖。
-6. 结构化字段默认折叠，选择 EDU 后展开。
-7. **B2 补齐**：卡片可见自足表述、状态、主要谓词和角色；B0 已写入 `edu_argument`，不要为展示再加表。
-8. **C**：提供「在图中查看本版本」。
+1. 根据 URL 打开固定版本、path 和选中单元。
+2. 目录树可展开卷 / 篇或纪 / 年；点叶节点只加载该前缀下的段。
+3. 点击 EDU 后高亮全部主要原文和补全上下文。
+4. 来源定位精度为降级时，明确显示“文本单元级”或“页面级”。
+5. 无 EDU 时仍显示原文，并提供带当前 path 的“前往抽取”入口。
+6. 对旧唐书、史记、通鉴三套预置结构方案：预览目录树与未匹配标题，确认前不写版本。
+
+其后：
+
+7. 编辑 Active EDU 时创建替代版本，不静默覆盖（B2）。
+8. 结构化字段默认折叠，选择 EDU 后展开。
+9. **B2**：卡片可见自足表述、状态、主要谓词和角色；B0 已写入 `edu_argument`，不要为展示再加表。
+10. **C**：提供「在图中查看本版本」。
 
 ### 9.3 Query 与 Pinia 的分工
 
@@ -684,13 +703,14 @@ evaluation/reports/phase-d-*.md
 
 1. `SourceLocator`：精确命中、降级定位、失败三种路径。
 2. `EduValidator`：固定角色、来源、外部知识和自动采用条件。
-3. `ContextAssembler`：目标文本不被裁剪、层级预算和稳定 `contextKey`。
-4. 任务领取：并发 worker 不重复领取、租约过期可恢复、幂等键有效。
-5. 数据库不变量：固定文档版本、修订冲突、拒绝/替代状态。
-6. 检索：全文与 EDU 双通道、RRF、权限过滤和无 EDU 回退。
-7. 实体链接：冷启动、项目关注实体为空、项目关注实体不改变自动链接结论。
-8. 图邻域：三种 scope、未链接显示节点、无权 EDU/实体不出现、统计先过滤再聚合。
-9. 问答引用：回答引用可回到当前用户有权的固定版本原文。
+3. `ContextAssembler`：目标文本不被裁剪、Section 与前后邻接、连续 unit 合并为 Target、过长重叠切开、稳定 `contextKey`。
+4. `TextStructureParser`：旧唐书目录反查卷号、史记去文前目录、通鉴卷/纪/年；确认前不写版本；编年体年节点下仍是多段。
+5. 任务领取：并发 worker 不重复领取、租约过期可恢复、幂等键有效。
+6. 数据库不变量：固定文档版本、修订冲突、拒绝/替代状态。
+7. 检索：全文与 EDU 双通道、RRF、权限过滤和无 EDU 回退。
+8. 实体链接：冷启动、项目关注实体为空、项目关注实体不改变自动链接结论。
+9. 图邻域：三种 scope、未链接显示节点、无权 EDU/实体不出现、统计先过滤再聚合。
+10. 问答引用：回答引用可回到当前用户有权的固定版本原文。
 
 不要为纯 getter、record 或框架映射编写镜像测试。外部客户端用一个成功和一个失败契约测试即可；不复制供应商 SDK 的测试。
 
@@ -698,16 +718,18 @@ evaluation/reports/phase-d-*.md
 
 Playwright 每阶段只保留新增的关键链路：
 
-- B：导入 TXT → 显式提取 → 显式抽取 EDU → 阅读器查看并定位原文；B2 起卡片可见角色。
+- B1：上传全书 txt → 选结构方案 → 预览目录树 → 确认后落版本 → 左树点卷/年 → 中间只见该节点各段。
+- B2：显式抽取 EDU（path 前缀）→ 卡片可见角色；B0 短 txt 空行切分仍可用。
 - C：打开实体页 → 查看来源限定关系 → 从画布或检查器回到原文；编辑者改链后图结果更新；无权用户看不到无权 EDU 和空壳实体。
 - D：提问 → 流式回答 → 点击引用回到原文。
 - E：保存提纲或文章 → 导出 Markdown 与引用清单。
+- P：文本 PDF / OCR PDF 各一条：提取内容 → 页码或栏进入 unit → 引用能回到解析文本。
 
 ### 12.4 阶段质量门
 
 退出标准直接引用[《整体规划》22.6 首期质量门](./blueprint.md#226-首期质量门)中 B 及后续阶段的要求。阶段 A 的质量门和继续实施决策按已通过处理，不再作为开工门禁；其中涉及来源、角色和禁止推断的规则仍需由回归测试保护。
 
-B0 已验收端到端链路、权限、固定版本、来源定位和任务恢复。B2、B3 完成阶段 B 的质量门 2、3、8、9。后续各阶段在开始前记录适用门槛、样本集、模型、预算和停止条件，数值阈值使用已有基线或该阶段代表性样本确定。
+B0 已验收端到端链路、权限、固定版本、来源定位和任务恢复。B2、B3 完成阶段 B 的质量门 2、3、8、9（TXT 语料）。文本 PDF / OCR PDF 的三级定位分布改在阶段 P 报告，不挡 B1–B3 和 C 开工。
 
 ## 13. 本地开发、CI 与部署
 
@@ -727,7 +749,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-MinerU 和模型默认连接外部测试账号。没有密钥时，应用仍应能启动并完成文档元数据、TXT/Markdown 导入和原文阅读；提交对应模型任务时返回明确的配置错误。
+MinerU 在阶段 P 前不接入。没有模型密钥时，应用仍应能启动并完成文档元数据、TXT/Markdown 导入和原文阅读；提交对应模型任务时返回明确的配置错误。
 
 ### 13.2 CI 顺序
 
@@ -769,63 +791,71 @@ Actuator 与 Micrometer 至少输出：
 
 ## 14. 分阶段落地计划
 
-本计划从[《整体规划》阶段 B](./blueprint.md#阶段-b文档到-edu-的最短闭环)细化实施。阶段 A 按已验证通过处理。B0 已完成，不再作为开工包。实施顺序为 B1 → B2 → B3 → C → D-min → D-scale → E，F 按实际需要启动。
+本计划从[《整体规划》阶段 B](./blueprint.md#阶段-b文档到-edu-的最短闭环)细化实施。阶段 A 按已验证通过处理。B0 已完成，不再作为开工包。实施顺序为 **B1 → B2 → B3 → C → D-min → D-scale → E → P → F**。
+
+B1 落实 `textunit.md`：一书一文档、结构方案、目录树阅读。文本单元采用段级定位、篇章级 path、按预算合并的抽取窗口（`pinggu-grok.md` 方案 C）。编年体年是目录节点，不是默认 unit。不把整卷做成唯一 unit，不建 `chapter` 表，也不因此提前做实体链接或 MinerU。
 
 后续阶段保留上位方案的退出条件；如实际运行和验收发现问题，再按第 23 章的 L2～L4 调整范围。日历时间需要结合开发人数、模型预算和外部服务配额另行排期；这里以可验收工作包为单位。
 
 ### 14.1 B0：应用初始化与 TXT/Markdown 纵向切片（已完成）
 
-目标：先贯通最小真实产品链路，再扩格式与批量能力。
+目标：先贯通最小真实产品链路，再扩全书结构与格式。
 
 已交付：单模块后端与 Vue 应用、PostgreSQL/Flyway/MinIO、文档与项目表及 ACL、TXT/Markdown 预签名上传、显式内容提取与不可变版本、job 与 processing run、EDU schema/抽取/校验/复核/持久化、阅读器回原文、原文与 EDU 基础检索、最小 CI。
 
-锁定：不回改 B0 已验收范围。阅读器未展示的角色字段、项目前端入口、Entity 与图，分别归 B2 与 C。
+锁定：不回改 B0 已验收范围。无结构方案的短 txt 仍可空行切段。全书目录与三栏阅读器归 B1；角色展示与组装归 B2；项目前端、Entity 与图归 C；PDF、MinerU 与 OCR 归 P。
 
 退出条件当时已满足：一份 TXT 能从上传、显式提取、显式抽取走到 Active/Proposed EDU，并从 EDU 精确回到原文；任务可恢复；未授权用户不能访问相关文档、EDU 和任务。
 
-### 14.2 B1：PDF 解析与批量文件处理
+### 14.2 B1：全书结构与阅读器
 
-目标：补齐阶段 B 要求的文件入口。
+目标：上传一部史书 txt，得到可导航的目录和可定位的段落。需求见 `textunit.md`。这是 B0 之后的第一个开工包。
 
 交付：
 
-- 在 B0 上传链路上增加短期预签名 GET、临时对象清理和多文件处理。
-- MinerU 提交、轮询、退避、原始结果归档和标准化。
-- 文本 PDF 与 OCR PDF 的版本、页码、文本单元和页图映射。
-- 多选文档逐个提交任务及汇总进度。
+- 结构方案：预置旧唐书纪传、史记、通鉴编年；可复制修改。方案表达文前目录、标题层级、目录与正文对齐、段落切分（空行或全角缩进）、邻居不跨卷/默认可不跨年、哪些节点默认不抽 EDU。
+- 解析预览：试解析给出目录树、各节点 unit 数、未识别标题、目录与正文对不上的卷；确认前不写 `document_version`。识别过差不得静默退化成 `p1`、`p2`。
+- 落库：正文每段一条 `text_unit`，`path` 如 `本纪/卷一/高祖`、`卷第一/周纪一/威烈王二十三年`。卷/纪/年标题是树节点，不是阅读段落。文前目录、附录走独立 path，默认不抽 EDU。
+- 阅读器三栏：左目录树、中当前 path 下原文、右 EDU。URL 保存版本、path、选中 unit。一次只渲染当前前缀。去掉内容区「文本单元」标题。
+- EDU 任务支持 path 前缀（抽取本卷/本篇/本年）。全书默认禁止一键全文抽取，须选到卷或更细，或明确勾选并看到预算。
+- 三部书验收：旧唐书正文标题反查目录卷号；史记去掉文前目录副本；通鉴无总目也能建 卷→纪→年，点年仍是多段。
 
-退出：按 TXT/Markdown、文本 PDF、OCR PDF 分别报告三级定位分布；外部任务失败可以恢复或明确重试。
+约束：Document 仍是书。不建篇章表。不默认用模型读完全书分卷。不接入 MinerU。B0 短 txt 无方案时保持空行切分。
+
+退出：确认前没有新版本；三部预置在代表性切片上目录可点、原文按段展示；改规则后不必重新上传文件。
 
 ### 14.3 B2：EDU 质量闭环
 
-目标：让批量 EDU 在无人逐条审核时形成可用检索池。
+目标：让批量 EDU 在无人逐条审核时形成可用检索池。按段显得信息不够，主修点是组装，不是把 unit 做大。
 
 交付：
 
-- 分层上下文预算、重叠目标、紧凑输出契约。
-- 自动采用规则版本、通过桶/疑点桶抽样和高影响队列。
+- 分层上下文：`ContextAssembler` 补 Section（来自 path）、前后 Neighbors、短文档概览；装填顺序仍是完整 Target → 邻接 → 篇章 → 概览。不跨卷；编年体默认不跨年。
+- 抽取窗口：按预算把连续 unit 合并为一次 Target；过长则重叠切开。短列传可以一次吃完全文，unit 仍分段存储。
+- 单次调用采纳的 EDU 条数过大视为窗口过大，切开再抽。汉字上限、重叠长度和条数上限用建成传、太宗本纪摘录、通鉴一年对照后再写入运行配置，不写进表结构。
+- 紧凑输出契约、自动采用规则版本、通过桶/疑点桶抽样和高影响队列。
 - EDU 编辑、拒绝、替代、修订冲突和重复候选簇。
 - 模型结论被人工覆盖的审计记录。
 - 阅读器 EDU 卡片展示自足表述、状态、主要谓词、角色；选中后展开时间、补全和来源精度。使用已有 `edu_argument`，不加表。
 
-退出：满足阶段 B 的质量门 2、3、8、9；错误输出不会进入默认检索；用户能在阅读器里看到将要画到图上的角色。
+退出：满足阶段 B 的质量门 2、3、8、9（TXT）；错误输出不会进入默认检索；用户能在阅读器里看到将要画到图上的角色；一次抽取的输入含所属篇章，不再只有前一段。
 
-### 14.4 B3：双通道检索与阶段验收
+### 14.4 B3：双通道检索与 TXT 闭环验收
 
-目标：完成阶段 B 的最短闭环。
+目标：完成阶段 B 在 TXT 语料上的最短闭环。PDF/OCR 不在本阶段退出条件里。
 
 交付：
 
 - 中文规范检索文本、位置映射和规则版本。
-- 原文全文、原文向量、EDU 向量、结构字段与 RRF。
+- 原文全文、原文向量、EDU 向量、结构字段与 RRF。原文向量仍按 unit；unit 保持段级。
 - SQL 内权限过滤、无 EDU 原文回退和阅读器空状态。
-- 代表性长文档的目录、原文高亮、引用锚点、容量与成本基线。
+- 代表性长文档（至少一部带目录树的史书）的目录导航、原文高亮、引用锚点、容量与成本基线。
 
-退出：达到[阶段 B 退出条件](./blueprint.md#阶段-b文档到-edu-的最短闭环)。
+退出：TXT 路径达到[阶段 B 退出条件](./blueprint.md#阶段-b文档到-edu-的最短闭环)中除 PDF/OCR 定位分报以外的要求。
 
 ### 14.5 C：实体关联图
 
-按[《整体规划》阶段 C](./blueprint.md#阶段-c实体关联图)加入共享 Entity、文档级链接和图谱浏览。先做链接质量，再做列表/检查器/统计，力导向画布放最后。局部 PPR 作为实验实现，未通过消融前不自动启用。阶段 C 不为 EDU 侧加字段。
+按[《整体规划》阶段 C](./blueprint.md#阶段-c实体关联图)加入共享 Entity、文档级链接和图谱浏览。先做链接质量，再做列表/检查器/统计，力导向画布放最后。局部 PPR 作为实验实现，未通过消融前不自动启用。阶段 C 不为 EDU 侧加字段。链接按固定文档版本运行，不按回或本纪建立实体。图谱可用 path 过滤来源，回和本纪不是图节点。
 
 开发顺序：
 
@@ -860,7 +890,23 @@ Actuator 与 Micrometer 至少输出：
 
 退出：成果版本能固定项目文档范围与引用，EDU 被替代后可识别需复核成果，导出内容能回到原文。
 
-### 14.9 F：按指标增强
+### 14.9 P：PDF、MinerU 与 OCR
+
+在 TXT 全书阅读、EDU、检索、图谱、问答和写作可用之后，再接入外部解析。标题映射到 B1 同一套 `path`；OCR 用页或栏作为 unit 候选，叙事正文仍按段。
+
+交付：
+
+- 短期预签名 GET、临时对象清理和多文件处理。
+- MinerU 提交、轮询、退避、原始结果归档和标准化。
+- 文本 PDF 与 OCR PDF 的版本、页码、文本单元和页图映射。
+- 多选文档逐个提交任务及汇总进度。
+- 按 TXT/Markdown、文本 PDF、OCR PDF 分别报告三级定位分布。
+
+约束：不把整份 PDF 收成唯一 unit。不回改 B1 的结构方案模型。没有 MinerU 密钥时，TXT 路径必须仍能完整使用。
+
+退出：外部任务失败可以恢复或明确重试；引用能回到解析器返回并固定的文本。
+
+### 14.10 F：按指标增强
 
 只从[《整体规划》第 25 章](./blueprint.md#25-延后能力及引入条件)选择已经满足引入条件的能力。每项增强先提交失败样本、基线、目标收益和停止条件，再写产品代码。
 
@@ -870,30 +916,35 @@ B0 的 12 个合并请求已经落地，不再重复。每个后续合并请求�
 
 B1：
 
-1. 预签名 GET、临时对象清理和多文件处理。
-2. MinerU 适配、归档与文本/OCR PDF 版本。
-3. 多选任务汇总进度。
+1. 结构方案预置（旧唐书 / 史记 / 通鉴）与解析预览，确认前不写版本。
+2. `path` 落库、目录树聚合 API、三栏阅读器（当前节点才渲染原文）。
+3. EDU 任务 path 前缀；全书禁止默认全文抽取。
 
 B2：
 
-4. 自动采用规则、抽样队列与人工覆盖审计。
-5. EDU 编辑、拒绝、替代与重复候选簇。
-6. 阅读器展示谓词、角色和时间。
+4. `ContextAssembler`：Section、前后邻接、连续 unit 合并为 Target、过长重叠切开。
+5. 自动采用规则、抽样队列与人工覆盖审计。
+6. EDU 编辑、拒绝、替代与重复候选簇。
+7. 阅读器展示谓词、角色和时间。
 
 B3：
 
-7. 规范检索文本、向量、RRF 与权限过滤验收。
+8. 规范检索文本、按 unit 的原文向量、RRF 与权限过滤验收。
 
 C：
 
-8. Entity 表（含 `tenant_id`）、名称表和冷启动匹配。
-9. 文档级链接、改链、纠错建议与 merge-preview。
-10. 邻域查询、统计和权限测试。
-11. 实体页、事件页、检查器和图谱列表/统计。
-12. 只读画布、三种 scope、未链接显示节点。
-13. 固定跳与项目前端入口；PPR 实验单独合并。
+9. Entity 表（含 `tenant_id`）、名称表和冷启动匹配。
+10. 文档级链接、改链、纠错建议与 merge-preview。
+11. 邻域查询、统计和权限测试。
+12. 实体页、事件页、检查器和图谱列表/统计。
+13. 只读画布、三种 scope、未链接显示节点。
+14. 固定跳与项目前端入口；PPR 实验单独合并。
 
-首个 C 合并即可开始实体表，不要一次提交画布加链接加 PPR。B0 完成后按 B1～B3 继续，不插入 A 阶段对照工具、标注任务或审批门禁。
+P：
+
+15. MinerU 适配、归档与文本/OCR PDF 版本；页码映射到已有 path 模型。
+
+首个 C 合并即可开始实体表，不要一次提交画布加链接加 PPR。B0 完成后先做 B1 全书结构与阅读器，不要插入 MinerU，也不插入 A 阶段对照工具、标注任务或审批门禁。
 
 ## 16. 按接入顺序固定的外部参数
 
@@ -908,8 +959,8 @@ C：
 | 代码回归样本与后续质量抽样预算 | B0 加入必要回归样本；B2、B3 按验收需要补充 | `evaluation/README.md` 与对应阶段记录 |
 | 引导管理员账号与密码 | B0 | 部署秘密与运维说明 |
 | S3 endpoint、region、bucket 和凭据 | B0 接入上传前；本地使用 MinIO | 部署配置 |
-| S3 生命周期规则 | B1 | 部署配置 |
-| MinerU 账号、区域、许可和限流 | B1 | 解析器配置与数据边界记录 |
+| S3 生命周期规则 | P（多文件与解析临时对象） | 部署配置 |
+| MinerU 账号、区域、许可和限流 | P | 解析器配置与数据边界记录 |
 | 中文检索候选方案与部署支持情况 | B3 | 检索基准报告 |
 | B 及后续阶段数值质量门 | 对应质量验收工作开始前 | 阶段报告 |
 

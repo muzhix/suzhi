@@ -1,6 +1,6 @@
 # 溯知（OntoTrace）
 
-文档到 EDU 的研究平台。B0（TXT/Markdown 纵向切片）已完成；后续按 B1 起实施。设计见 [blueprint.md](./blueprint.md) 1.14、[dev-landing.md](./dev-landing.md) 0.3。
+文档到 EDU 的研究平台。B0（TXT/Markdown 纵向切片）已完成；后续从 B1（全书结构与阅读器）实施。PDF/MinerU/OCR 在写作之后的阶段 P。设计见 [blueprint.md](./blueprint.md) 1.15、[dev-landing.md](./dev-landing.md) 0.5。
 
 ## 本地启动
 
