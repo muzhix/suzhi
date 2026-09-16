@@ -23,3 +23,5 @@ frontend/blob-report/
 .env.local
 **/.env
 !**/.env.example
+
+doc/正史/
