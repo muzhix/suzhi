@@ -55,6 +55,16 @@ class TextStructureParserFullBookTest {
         if (result.headingCount() == 0) {
             throw new AssertionError(schemeId + " 没有识别到标题: " + book.get());
         }
+        if ("jizhuan-toc-divergent".equals(schemeId)) {
+            boolean juanEr = result.units().stream()
+                    .anyMatch(unit -> "卷二 本纪第二 太宗上".equals(unit.path()));
+            if (!juanEr) {
+                throw new AssertionError(schemeId + " 未对照 卷二 本纪第二 太宗上: " + result.summary());
+            }
+            if (result.units().stream().anyMatch(unit -> unit.path().contains("/"))) {
+                throw new AssertionError(schemeId + " path 含多层 /");
+            }
+        }
         return 1;
     }
 }

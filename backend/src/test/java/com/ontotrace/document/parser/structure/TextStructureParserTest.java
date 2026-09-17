@@ -52,6 +52,50 @@ class TextStructureParserTest {
     }
 
     /**
+     * 《旧唐书》正文标题行首两个 U+3000，须去掉后再匹配；「卷十七上」仍能从目录反查。
+     */
+    @Test
+    void divergentIgnoresLeadingIdeographicSpaceOnBodyTitle() {
+        String fixture = read("jizhuan-toc-divergent-leading-ws.txt");
+        int titleAt = fixture.indexOf("本纪第二 太宗上");
+        assertTrue(titleAt >= 2);
+        assertEquals("\u3000\u3000", fixture.substring(titleAt - 2, titleAt));
+
+        StructureProfile profile = registry.require("jizhuan-toc-divergent");
+        TextStructureParser.ParseResult result = parser.parse(fixture, profile);
+        assertTrue(result.acceptable(), result.summary());
+        assertEquals(3, result.headingCount());
+        assertEquals(
+                List.of("卷一 本纪第一 高祖", "卷二 本纪第二 太宗上", "卷十七上 本纪第十七上 敬宗　文宗上"),
+                result.units().stream().map(TextStructureParser.Unit::path).distinct().toList());
+        assertTrue(paths(result).stream().noneMatch(path -> path.contains("/")));
+        assertTrue(result.unmatchedVolumes().stream().noneMatch(volume -> volume.startsWith("卷二 ")));
+        assertTrue(result.unmatchedHeadings().stream().noneMatch(heading -> heading.contains("卷十七上")));
+        assertTrue(result.outline().stream().anyMatch(node -> "卷二 本纪第二 太宗上".equals(node.path())));
+        assertTrue(result.outline().stream().allMatch(node -> node.children().isEmpty()));
+    }
+
+    /**
+     * 行首普通空格、tab、BOM、全角空格都不妨碍正文标题匹配。
+     */
+    @Test
+    void divergentMatchesBodyTitleAfterSpaceTabBom() {
+        StructureProfile profile = registry.require("jizhuan-toc-divergent");
+        String toc = "卷一 本纪第一\n卷二 本纪第二\n\n";
+        String rest = "本纪第二 太宗上\n　　太宗率长孙无忌伏兵玄武门。\n";
+        for (String prefix : List.of(" ", "\t", "\u3000", "\uFEFF", " \t\u3000")) {
+            TextStructureParser.ParseResult result = parser.parse(toc + prefix + rest, profile);
+            assertEquals(
+                    List.of("卷二 本纪第二 太宗上"),
+                    paths(result),
+                    () -> "prefix codepoints "
+                            + prefix.codePoints().mapToObj(Integer::toHexString).toList()
+                            + " summary="
+                            + result.summary());
+        }
+    }
+
+    /**
      * 丢掉文前目录副本；表节点可识别；正文卷下多段。
      */
     @Test
