@@ -22,32 +22,32 @@ import org.springframework.stereotype.Service;
 @Service
 public class EduService {
 
-    private final DocumentService documents;
-    private final DocumentVersionRepository versions;
-    private final EduRepository edus;
-    private final EduSourceRefRepository sources;
-    private final EduArgumentRepository arguments;
+    private final DocumentService documentService;
+    private final DocumentVersionRepository documentVersionRepo;
+    private final EduRepository eduRepo;
+    private final EduSourceRefRepository eduSourceRefRepo;
+    private final EduArgumentRepository eduArgumentRepo;
 
     /**
      * 创建服务。
      *
-     * @param documents 文档服务
-     * @param versions 版本文仓
-     * @param edus EDU 仓储
-     * @param sources 来源仓储
-     * @param arguments 参数仓储
+     * @param documentService 文档服务
+     * @param documentVersionRepo 版本文仓
+     * @param eduRepo EDU 仓储
+     * @param eduSourceRefRepo 来源仓储
+     * @param eduArgumentRepo 参数仓储
      */
     public EduService(
-            DocumentService documents,
-            DocumentVersionRepository versions,
-            EduRepository edus,
-            EduSourceRefRepository sources,
-            EduArgumentRepository arguments) {
-        this.documents = documents;
-        this.versions = versions;
-        this.edus = edus;
-        this.sources = sources;
-        this.arguments = arguments;
+            DocumentService documentService,
+            DocumentVersionRepository documentVersionRepo,
+            EduRepository eduRepo,
+            EduSourceRefRepository eduSourceRefRepo,
+            EduArgumentRepository eduArgumentRepo) {
+        this.documentService = documentService;
+        this.documentVersionRepo = documentVersionRepo;
+        this.eduRepo = eduRepo;
+        this.eduSourceRefRepo = eduSourceRefRepo;
+        this.eduArgumentRepo = eduArgumentRepo;
     }
 
     /**
@@ -58,16 +58,16 @@ public class EduService {
      * @return EDU 详情
      */
     public List<EduDetail> list(CurrentUser user, UUID versionId) {
-        DocumentVersion version = versions.findById(versionId).orElseThrow(() -> new NotFoundException("文档版本不存在"));
-        documents.requireView(user, version.getDocumentId());
-        List<Edu> rows = edus.findVisible(versionId);
+        DocumentVersion version = documentVersionRepo.findById(versionId).orElseThrow(() -> new NotFoundException("文档版本不存在"));
+        documentService.requireView(user, version.getDocumentId());
+        List<Edu> rows = eduRepo.findVisible(versionId);
         List<UUID> ids = rows.stream().map(Edu::getId).toList();
         Map<UUID, List<EduSourceRef>> sourceMap = ids.isEmpty()
                 ? Map.of()
-                : sources.findByEduIdIn(ids).stream().collect(Collectors.groupingBy(EduSourceRef::getEduId));
+                : eduSourceRefRepo.findByEduIdIn(ids).stream().collect(Collectors.groupingBy(EduSourceRef::getEduId));
         Map<UUID, List<EduArgument>> argMap = ids.isEmpty()
                 ? Map.of()
-                : arguments.findByEduIdIn(ids).stream().collect(Collectors.groupingBy(EduArgument::getEduId));
+                : eduArgumentRepo.findByEduIdIn(ids).stream().collect(Collectors.groupingBy(EduArgument::getEduId));
         return rows.stream()
                 .map(edu -> new EduDetail(
                         edu, sourceMap.getOrDefault(edu.getId(), List.of()), argMap.getOrDefault(edu.getId(), List.of())))

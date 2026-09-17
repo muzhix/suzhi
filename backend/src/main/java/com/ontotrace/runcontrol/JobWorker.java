@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class JobWorker {
 
-    private final JobService jobs;
+    private final JobService jobService;
     private final OntoTraceProperties properties;
     private final String workerId = UUID.randomUUID().toString();
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
@@ -33,11 +33,11 @@ public class JobWorker {
     /**
      * 创建工作进程。
      *
-     * @param jobs 任务服务
+     * @param jobService 任务服务
      * @param properties 运行参数
      */
-    public JobWorker(JobService jobs, OntoTraceProperties properties) {
-        this.jobs = jobs;
+    public JobWorker(JobService jobService, OntoTraceProperties properties) {
+        this.jobService = jobService;
         this.properties = properties;
         this.permits = new Semaphore(Math.max(1, properties.getWorker().getMaxConcurrency()));
         log.info(
@@ -72,7 +72,7 @@ public class JobWorker {
         while (permits.tryAcquire()) {
             Job claimed;
             try {
-                claimed = jobs.claim(workerId);
+                claimed = jobService.claim(workerId);
             } catch (RuntimeException ex) {
                 permits.release();
                 throw ex;
@@ -107,7 +107,7 @@ public class JobWorker {
 
     private void runClaimed(Job claimed) {
         try {
-            jobs.execute(claimed);
+            jobService.execute(claimed);
         } finally {
             inFlight.remove(claimed.getId());
             permits.release();
@@ -123,6 +123,6 @@ public class JobWorker {
         if (inFlight.isEmpty()) {
             return;
         }
-        jobs.renewLeases(workerId, List.copyOf(inFlight));
+        jobService.renewLeases(workerId, List.copyOf(inFlight));
     }
 }

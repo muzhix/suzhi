@@ -32,18 +32,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
-    private final SecurityContextRepository securityContextRepository;
+    private final SecurityContextRepository securityContextRepo;
 
     /**
      * 创建控制器。
      *
      * @param authenticationManager 认证管理器
-     * @param securityContextRepository Session 仓储
+     * @param securityContextRepo Session 仓储
      */
     public AuthController(
-            AuthenticationManager authenticationManager, SecurityContextRepository securityContextRepository) {
+            AuthenticationManager authenticationManager, SecurityContextRepository securityContextRepo) {
         this.authenticationManager = authenticationManager;
-        this.securityContextRepository = securityContextRepository;
+        this.securityContextRepo = securityContextRepo;
     }
 
     /**
@@ -77,7 +77,7 @@ public class AuthController {
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(sessionAuth);
         SecurityContextHolder.setContext(context);
-        securityContextRepository.saveContext(context, httpRequest, httpResponse);
+        securityContextRepo.saveContext(context, httpRequest, httpResponse);
         log.info("user logged in userId={}", currentUser.id());
         return MeResponse.from(currentUser);
     }

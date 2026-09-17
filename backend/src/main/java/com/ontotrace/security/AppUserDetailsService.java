@@ -13,15 +13,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class AppUserDetailsService implements UserDetailsService {
 
-    private final AppUserRepository users;
+    private final AppUserRepository appUserRepo;
 
     /**
      * 创建服务。
      *
-     * @param users 用户仓储
+     * @param appUserRepo 用户仓储
      */
-    public AppUserDetailsService(AppUserRepository users) {
-        this.users = users;
+    public AppUserDetailsService(AppUserRepository appUserRepo) {
+        this.appUserRepo = appUserRepo;
     }
 
     /**
@@ -32,7 +32,7 @@ public class AppUserDetailsService implements UserDetailsService {
      */
     @Override
     public UserDetails loadUserByUsername(String username) {
-        AppUser user = users.findByUsername(username)
+        AppUser user = appUserRepo.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException(username));
         return new AppUserDetails(user);
     }

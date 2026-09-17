@@ -64,28 +64,28 @@ class ExtractEduPersistenceIT {
     JobService jobService;
 
     @Autowired
-    JobRepository jobRepository;
+    JobRepository jobRepo;
 
     @Autowired
-    DocumentService documents;
+    DocumentService documentService;
 
     @Autowired
-    DocumentVersionRepository versions;
+    DocumentVersionRepository documentVersionRepo;
 
     @Autowired
-    TextUnitRepository textUnits;
+    TextUnitRepository textUnitRepo;
 
     @Autowired
-    AssetRepository assets;
+    AssetRepository assetRepo;
 
     @Autowired
-    EduRepository edus;
+    EduRepository eduRepo;
 
     @Autowired
-    ProcessingRunRepository runs;
+    ProcessingRunRepository processingRunRepo;
 
     @Autowired
-    AppUserRepository users;
+    AppUserRepository appUserRepo;
 
     /**
      * 全文重跑为覆盖式重写：旧 EDU 物理删除、总行数等于新一轮条数；
@@ -94,13 +94,13 @@ class ExtractEduPersistenceIT {
     @Test
     void rerunReplacesByRewrite() {
         CurrentUser user = admin();
-        Document document = documents.create(user, "覆盖重写测试", null, null);
+        Document document = documentService.create(user, "覆盖重写测试", null, null);
         UUID versionId = newVersion(document.getId(), "太宗率长孙无忌伏兵玄武门。", "皇太子建成、齐王元吉谋害太宗。");
 
         Job first = jobService.submitEdu(user, versionId, null, null);
         assertEquals(first.getId(), jobService.submitEdu(user, versionId, null, null).getId());
         runToCompletion(first);
-        assertEquals(2, edus.findVisible(versionId).size());
+        assertEquals(2, eduRepo.findVisible(versionId).size());
 
         Job second = jobService.submitEdu(user, versionId, null, null);
         assertNotEquals(first.getId(), second.getId());
@@ -109,7 +109,7 @@ class ExtractEduPersistenceIT {
         List<Edu> all = versionEdus(versionId);
         assertEquals(2, all.size());
         assertEquals(0, all.stream().filter(edu -> "superseded".equals(edu.getStatus())).count());
-        assertEquals(2, edus.findVisible(versionId).size());
+        assertEquals(2, eduRepo.findVisible(versionId).size());
     }
 
     /**
@@ -118,21 +118,21 @@ class ExtractEduPersistenceIT {
     @Test
     void partialRerunDeletesOnlyCitedEdus() {
         CurrentUser user = admin();
-        Document document = documents.create(user, "局部重跑测试", null, null);
+        Document document = documentService.create(user, "局部重跑测试", null, null);
         UUID versionId = newVersion(document.getId(), "太宗率长孙无忌伏兵玄武门。", "皇太子建成、齐王元吉谋害太宗。");
 
         Job full = jobService.submitEdu(user, versionId, null, null);
         runToCompletion(full);
-        assertEquals(2, edus.findVisible(versionId).size());
+        assertEquals(2, eduRepo.findVisible(versionId).size());
 
-        TextUnit secondUnit = textUnits.findByDocumentVersionIdOrderBySeqAsc(versionId).get(1);
+        TextUnit secondUnit = textUnitRepo.findByDocumentVersionIdOrderBySeqAsc(versionId).get(1);
         Job partial = jobService.submitEdu(user, versionId, null, secondUnit.getId());
         runToCompletion(partial);
 
         List<Edu> all = versionEdus(versionId);
         assertEquals(2, all.size());
         assertEquals(0, all.stream().filter(edu -> "superseded".equals(edu.getStatus())).count());
-        assertEquals(2, edus.findVisible(versionId).size());
+        assertEquals(2, eduRepo.findVisible(versionId).size());
     }
 
     /**
@@ -142,13 +142,13 @@ class ExtractEduPersistenceIT {
     @Test
     void recordsProcessingRun() {
         CurrentUser user = admin();
-        Document document = documents.create(user, "运行记录测试", null, null);
+        Document document = documentService.create(user, "运行记录测试", null, null);
         UUID versionId = newVersion(document.getId(), "太宗率长孙无忌伏兵玄武门。");
 
         Job job = jobService.submitEdu(user, versionId, null, null);
         runToCompletion(job);
 
-        ProcessingRun run = runs.findFirstByJobIdOrderByCreatedAtDesc(job.getId()).orElseThrow();
+        ProcessingRun run = processingRunRepo.findFirstByJobIdOrderByCreatedAtDesc(job.getId()).orElseThrow();
         assertEquals("succeeded", run.getStatus());
         assertEquals(versionId, run.getInputDocumentVersionId());
         assertEquals("all", run.getInputRange());
@@ -158,7 +158,7 @@ class ExtractEduPersistenceIT {
         assertNull(run.getReviewModelId());
         assertNull(run.getReviewPromptVersion());
         assertNotNull(run.getFinishedAt());
-        List<Edu> visible = edus.findVisible(versionId);
+        List<Edu> visible = eduRepo.findVisible(versionId);
         assertEquals(1, visible.size());
         assertEquals(run.getId(), visible.getFirst().getProcessingRunId());
         assertEquals("active", visible.getFirst().getStatus());
@@ -167,7 +167,7 @@ class ExtractEduPersistenceIT {
     }
 
     private CurrentUser admin() {
-        AppUser user = users.findByUsername("admin").orElseThrow();
+        AppUser user = appUserRepo.findByUsername("admin").orElseThrow();
         return new CurrentUser(user.getId(), user.getUsername(), user.getDisplayName(), user.getPlatformRole());
     }
 
@@ -176,7 +176,7 @@ class ExtractEduPersistenceIT {
         assertNotNull(claimed);
         assertEquals(job.getId(), claimed.getId());
         jobService.execute(claimed);
-        Job finished = jobRepository.findById(job.getId()).orElseThrow();
+        Job finished = jobRepo.findById(job.getId()).orElseThrow();
         assertEquals("succeeded", finished.getStatus());
     }
 
@@ -190,9 +190,9 @@ class ExtractEduPersistenceIT {
                 .checksumSha256(UUID.randomUUID().toString().replace("-", ""))
                 .createdAt(Instant.now())
                 .build();
-        assets.save(asset);
+        assetRepo.save(asset);
         UUID versionId = UUID.randomUUID();
-        versions.save(DocumentVersion.builder()
+        documentVersionRepo.save(DocumentVersion.builder()
                 .id(versionId)
                 .documentId(documentId)
                 .assetId(asset.getId())
@@ -203,7 +203,7 @@ class ExtractEduPersistenceIT {
                 .build());
         int seq = 1;
         for (String text : unitTexts) {
-            textUnits.save(TextUnit.builder()
+            textUnitRepo.save(TextUnit.builder()
                     .id(UUID.randomUUID())
                     .documentVersionId(versionId)
                     .seq(seq)
@@ -216,7 +216,7 @@ class ExtractEduPersistenceIT {
     }
 
     private List<Edu> versionEdus(UUID versionId) {
-        return StreamSupport.stream(edus.findAll().spliterator(), false)
+        return StreamSupport.stream(eduRepo.findAll().spliterator(), false)
                 .filter(edu -> versionId.equals(edu.getDocumentVersionId()))
                 .toList();
     }

@@ -24,44 +24,44 @@ import org.springframework.stereotype.Service;
 @Service
 public class DocumentStructureService {
 
-    private final DocumentService documents;
-    private final DocumentVersionRepository versions;
-    private final UploadService uploads;
-    private final AssetRepository assets;
+    private final DocumentService documentService;
+    private final DocumentVersionRepository documentVersionRepo;
+    private final UploadService uploadService;
+    private final AssetRepository assetRepo;
     private final S3AssetStore store;
     private final TextDocumentParser textParser;
     private final TextStructureParser structureParser;
-    private final StructureSchemeRegistry schemes;
+    private final StructureSchemeRegistry structureSchemeRegistry;
 
     /**
      * 创建服务。
      *
-     * @param documents 文档服务
-     * @param versions 版本文仓
-     * @param uploads 上传服务
-     * @param assets 资产仓储
+     * @param documentService 文档服务
+     * @param documentVersionRepo 版本文仓
+     * @param uploadService 上传服务
+     * @param assetRepo 资产仓储
      * @param store 对象存储
      * @param textParser 文本导入器
      * @param structureParser 结构解析器
-     * @param schemes 预置方案
+     * @param structureSchemeRegistry 预置方案
      */
     public DocumentStructureService(
-            DocumentService documents,
-            DocumentVersionRepository versions,
-            UploadService uploads,
-            AssetRepository assets,
+            DocumentService documentService,
+            DocumentVersionRepository documentVersionRepo,
+            UploadService uploadService,
+            AssetRepository assetRepo,
             S3AssetStore store,
             TextDocumentParser textParser,
             TextStructureParser structureParser,
-            StructureSchemeRegistry schemes) {
-        this.documents = documents;
-        this.versions = versions;
-        this.uploads = uploads;
-        this.assets = assets;
+            StructureSchemeRegistry structureSchemeRegistry) {
+        this.documentService = documentService;
+        this.documentVersionRepo = documentVersionRepo;
+        this.uploadService = uploadService;
+        this.assetRepo = assetRepo;
         this.store = store;
         this.textParser = textParser;
         this.structureParser = structureParser;
-        this.schemes = schemes;
+        this.structureSchemeRegistry = structureSchemeRegistry;
     }
 
     /**
@@ -70,7 +70,7 @@ public class DocumentStructureService {
      * @return 方案列表
      */
     public java.util.List<StructureProfile> listSchemes() {
-        return schemes.list();
+        return structureSchemeRegistry.list();
     }
 
     /**
@@ -82,15 +82,15 @@ public class DocumentStructureService {
      * @return 预览
      */
     public TextStructureParser.ParseResult preview(CurrentUser user, UUID documentId, StructureSchemeRequest request) {
-        documents.requireEdit(user, documentId);
-        StructureProfile profile = schemes.resolve(
+        documentService.requireEdit(user, documentId);
+        StructureProfile profile = structureSchemeRegistry.resolve(
                 request == null ? null : request.schemeId(), request == null ? null : request.profile());
         if (profile == null) {
             throw new UnprocessableException("试解析需要结构方案");
         }
-        int versionCount = versions.findByDocumentIdOrderByVersionNoDesc(documentId).size();
+        int versionCount = documentVersionRepo.findByDocumentIdOrderByVersionNoDesc(documentId).size();
         TextStructureParser.ParseResult result = structureParser.parse(readUploadedText(documentId), profile);
-        int after = versions.findByDocumentIdOrderByVersionNoDesc(documentId).size();
+        int after = documentVersionRepo.findByDocumentIdOrderByVersionNoDesc(documentId).size();
         if (after != versionCount) {
             throw new IllegalStateException("试解析不得写入文档版本");
         }
@@ -111,8 +111,8 @@ public class DocumentStructureService {
      * @return 标准化文本
      */
     public String readUploadedText(UUID documentId) {
-        UploadSession session = uploads.requireCompleted(documentId);
-        Asset asset = assets.findById(session.getAssetId()).orElseThrow();
+        UploadSession session = uploadService.requireCompleted(documentId);
+        Asset asset = assetRepo.findById(session.getAssetId()).orElseThrow();
         byte[] bytes = store.getObject(asset.getObjectKey());
         DocumentParser.ParseResult parsed = textParser.parse(new DocumentParser.ParseRequest(
                 asset.getObjectKey(), asset.getOriginalFilename(), asset.getContentType(), bytes));
@@ -132,6 +132,6 @@ public class DocumentStructureService {
         if (request == null) {
             return null;
         }
-        return schemes.resolve(request.schemeId(), request.profile());
+        return structureSchemeRegistry.resolve(request.schemeId(), request.profile());
     }
 }

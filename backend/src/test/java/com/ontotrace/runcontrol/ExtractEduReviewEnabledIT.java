@@ -61,28 +61,28 @@ class ExtractEduReviewEnabledIT {
     JobService jobService;
 
     @Autowired
-    JobRepository jobRepository;
+    JobRepository jobRepo;
 
     @Autowired
-    DocumentService documents;
+    DocumentService documentService;
 
     @Autowired
-    DocumentVersionRepository versions;
+    DocumentVersionRepository documentVersionRepo;
 
     @Autowired
-    TextUnitRepository textUnits;
+    TextUnitRepository textUnitRepo;
 
     @Autowired
-    AssetRepository assets;
+    AssetRepository assetRepo;
 
     @Autowired
-    EduRepository edus;
+    EduRepository eduRepo;
 
     @Autowired
-    ProcessingRunRepository runs;
+    ProcessingRunRepository processingRunRepo;
 
     @Autowired
-    AppUserRepository users;
+    AppUserRepository appUserRepo;
 
     /**
      * stub 复核恒通过：EDU 记为 passed，运行记录回填复核模型与提示版本。
@@ -90,7 +90,7 @@ class ExtractEduReviewEnabledIT {
     @Test
     void reviewResultPersistedWhenEnabled() {
         CurrentUser user = admin();
-        Document document = documents.create(user, "复核开启测试", null, null);
+        Document document = documentService.create(user, "复核开启测试", null, null);
         UUID versionId = newVersion(document.getId(), "太宗率长孙无忌伏兵玄武门。");
 
         Job job = jobService.submitEdu(user, versionId, null, null);
@@ -98,22 +98,22 @@ class ExtractEduReviewEnabledIT {
         assertNotNull(claimed);
         assertEquals(job.getId(), claimed.getId());
         jobService.execute(claimed);
-        assertEquals("succeeded", jobRepository.findById(job.getId()).orElseThrow().getStatus());
+        assertEquals("succeeded", jobRepo.findById(job.getId()).orElseThrow().getStatus());
 
-        List<Edu> visible = edus.findVisible(versionId);
+        List<Edu> visible = eduRepo.findVisible(versionId);
         assertEquals(1, visible.size());
         Edu edu = visible.getFirst();
         assertEquals("active", edu.getStatus());
         assertEquals("passed", edu.getReviewResult());
         assertEquals("stub pass", edu.getReviewNotes());
 
-        ProcessingRun run = runs.findFirstByJobIdOrderByCreatedAtDesc(job.getId()).orElseThrow();
+        ProcessingRun run = processingRunRepo.findFirstByJobIdOrderByCreatedAtDesc(job.getId()).orElseThrow();
         assertEquals("stub", run.getReviewModelId());
         assertEquals("edu-review-v1", run.getReviewPromptVersion());
     }
 
     private CurrentUser admin() {
-        AppUser user = users.findByUsername("admin").orElseThrow();
+        AppUser user = appUserRepo.findByUsername("admin").orElseThrow();
         return new CurrentUser(user.getId(), user.getUsername(), user.getDisplayName(), user.getPlatformRole());
     }
 
@@ -127,9 +127,9 @@ class ExtractEduReviewEnabledIT {
                 .checksumSha256(UUID.randomUUID().toString().replace("-", ""))
                 .createdAt(Instant.now())
                 .build();
-        assets.save(asset);
+        assetRepo.save(asset);
         UUID versionId = UUID.randomUUID();
-        versions.save(DocumentVersion.builder()
+        documentVersionRepo.save(DocumentVersion.builder()
                 .id(versionId)
                 .documentId(documentId)
                 .assetId(asset.getId())
@@ -140,7 +140,7 @@ class ExtractEduReviewEnabledIT {
                 .build());
         int seq = 1;
         for (String text : unitTexts) {
-            textUnits.save(TextUnit.builder()
+            textUnitRepo.save(TextUnit.builder()
                     .id(UUID.randomUUID())
                     .documentVersionId(versionId)
                     .seq(seq)

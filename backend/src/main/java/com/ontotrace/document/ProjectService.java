@@ -19,18 +19,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ProjectService {
 
-    private final ProjectRepository projects;
-    private final DocumentRepository documents;
+    private final ProjectRepository projectRepo;
+    private final DocumentRepository documentRepo;
 
     /**
      * 创建服务。
      *
-     * @param projects 项目仓储
-     * @param documents 文档仓储
+     * @param projectRepo 项目仓储
+     * @param documentRepo 文档仓储
      */
-    public ProjectService(ProjectRepository projects, DocumentRepository documents) {
-        this.projects = projects;
-        this.documents = documents;
+    public ProjectService(ProjectRepository projectRepo, DocumentRepository documentRepo) {
+        this.projectRepo = projectRepo;
+        this.documentRepo = documentRepo;
     }
 
     /**
@@ -52,8 +52,8 @@ public class ProjectService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        projects.save(project);
-        projects.insertMember(project.getId(), user.id(), "owner");
+        projectRepo.save(project);
+        projectRepo.insertMember(project.getId(), user.id(), "owner");
         log.info("created project projectId={} userId={}", project.getId(), user.id());
         return project;
     }
@@ -66,9 +66,9 @@ public class ProjectService {
      * @return 项目与可见文档
      */
     public ProjectDetail get(CurrentUser user, UUID projectId) {
-        Project project = projects.findAccessible(projectId, user.id())
+        Project project = projectRepo.findAccessible(projectId, user.id())
                 .orElseThrow(() -> new NotFoundException("项目不存在或无权访问"));
-        return new ProjectDetail(project, projects.findVisibleDocumentIds(projectId, user.id()));
+        return new ProjectDetail(project, projectRepo.findVisibleDocumentIds(projectId, user.id()));
     }
 
     /**
@@ -81,13 +81,13 @@ public class ProjectService {
      */
     @Transactional
     public void addDocument(CurrentUser user, UUID projectId, UUID documentId, UUID documentVersionId) {
-        if (!projects.existsMember(projectId, user.id())) {
+        if (!projectRepo.existsMember(projectId, user.id())) {
             throw new AccessDeniedException("不是项目成员");
         }
-        if (!documents.canView(documentId, user.id())) {
+        if (!documentRepo.canView(documentId, user.id())) {
             throw new AccessDeniedException("没有该文档权限，不能加入项目");
         }
-        projects.upsertDocument(projectId, documentId, documentVersionId);
+        projectRepo.upsertDocument(projectId, documentId, documentVersionId);
     }
 
     /**

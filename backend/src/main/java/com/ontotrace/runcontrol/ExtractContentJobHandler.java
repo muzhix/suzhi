@@ -30,44 +30,44 @@ import org.springframework.stereotype.Component;
 @Component
 public class ExtractContentJobHandler implements JobHandler {
 
-    private final UploadService uploads;
-    private final AssetRepository assets;
+    private final UploadService uploadService;
+    private final AssetRepository assetRepo;
     private final S3AssetStore store;
     private final TextDocumentParser parser;
     private final TextStructureParser structureParser;
     private final ExtractContentWriter writer;
-    private final ProcessingRunRepository runs;
-    private final JobRepository jobs;
+    private final ProcessingRunRepository processingRunRepo;
+    private final JobRepository jobRepo;
 
     /**
      * 创建处理器。
      *
-     * @param uploads 上传服务
-     * @param assets 资产仓储
+     * @param uploadService 上传服务
+     * @param assetRepo 资产仓储
      * @param store 对象存储
      * @param parser 文本解析器
      * @param structureParser 结构解析器
      * @param writer 版本写入器
-     * @param runs 处理运行仓储
-     * @param jobs 任务仓储
+     * @param processingRunRepo 处理运行仓储
+     * @param jobRepo 任务仓储
      */
     public ExtractContentJobHandler(
-            UploadService uploads,
-            AssetRepository assets,
+            UploadService uploadService,
+            AssetRepository assetRepo,
             S3AssetStore store,
             TextDocumentParser parser,
             TextStructureParser structureParser,
             ExtractContentWriter writer,
-            ProcessingRunRepository runs,
-            JobRepository jobs) {
-        this.uploads = uploads;
-        this.assets = assets;
+            ProcessingRunRepository processingRunRepo,
+            JobRepository jobRepo) {
+        this.uploadService = uploadService;
+        this.assetRepo = assetRepo;
         this.store = store;
         this.parser = parser;
         this.structureParser = structureParser;
         this.writer = writer;
-        this.runs = runs;
-        this.jobs = jobs;
+        this.processingRunRepo = processingRunRepo;
+        this.jobRepo = jobRepo;
     }
 
     /**
@@ -99,10 +99,10 @@ public class ExtractContentJobHandler implements JobHandler {
                 .status("running")
                 .createdAt(Instant.now())
                 .build();
-        runs.save(run);
+        processingRunRepo.save(run);
         try {
-            UploadSession session = uploads.requireCompleted(job.getDocumentId());
-            Asset asset = assets.findById(session.getAssetId()).orElseThrow();
+            UploadSession session = uploadService.requireCompleted(job.getDocumentId());
+            Asset asset = assetRepo.findById(session.getAssetId()).orElseThrow();
             byte[] bytes = store.getObject(asset.getObjectKey());
             DocumentParser.ParseResult parsed = parser.parse(new DocumentParser.ParseRequest(
                     asset.getObjectKey(), asset.getOriginalFilename(), asset.getContentType(), bytes));
@@ -121,7 +121,7 @@ public class ExtractContentJobHandler implements JobHandler {
                 }
                 units = structured.units();
                 parserId = "text-structure-v1";
-                runs.setParameters(run.getId(), StructureJson.write(profile));
+                processingRunRepo.setParameters(run.getId(), StructureJson.write(profile));
             }
             UUID versionId = writer.writeVersion(
                     job, job.getDocumentId(), asset.getId(), asset.getChecksumSha256(), parserId, units);
@@ -129,7 +129,7 @@ public class ExtractContentJobHandler implements JobHandler {
             run.setInputDocumentVersionId(versionId);
             run.setStatus("succeeded");
             run.setFinishedAt(Instant.now());
-            runs.save(run);
+            processingRunRepo.save(run);
             log.info(
                     "extracted content jobId={} versionId={} scheme={} units={}",
                     job.getId(),
@@ -140,13 +140,13 @@ public class ExtractContentJobHandler implements JobHandler {
             run.setNew(false);
             run.setStatus("failed");
             run.setFinishedAt(Instant.now());
-            runs.save(run);
+            processingRunRepo.save(run);
             throw ex;
         }
     }
 
     private StructureProfile loadProfile(Job job) {
-        String json = jobs.findPayload(job.getId()).orElse(null);
+        String json = jobRepo.findPayload(job.getId()).orElse(null);
         if (json == null || json.isBlank() || "null".equals(json)) {
             return null;
         }

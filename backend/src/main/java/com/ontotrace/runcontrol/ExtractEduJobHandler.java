@@ -37,12 +37,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class ExtractEduJobHandler implements JobHandler {
 
-    private final TextUnitRepository textUnits;
+    private final TextUnitRepository textUnitRepo;
     private final ContextAssembler assembler;
-    private final EduModelGateway models;
+    private final EduModelGateway eduModelGateway;
     private final EduBatchWriter writer;
-    private final JobRepository jobs;
-    private final ProcessingRunRepository runs;
+    private final JobRepository jobRepo;
+    private final ProcessingRunRepository processingRunRepo;
     private final S3AssetStore store;
     private final OntoTraceProperties properties;
     private final SourceLocator locator = new SourceLocator();
@@ -51,30 +51,30 @@ public class ExtractEduJobHandler implements JobHandler {
     /**
      * 创建处理器。
      *
-     * @param textUnits 文本单元仓储
+     * @param textUnitRepo 文本单元仓储
      * @param assembler 上下文组装
-     * @param models 模型网关
+     * @param eduModelGateway 模型网关
      * @param writer EDU 批量写入
-     * @param jobs 任务仓储
-     * @param runs 处理运行仓储
+     * @param jobRepo 任务仓储
+     * @param processingRunRepo 处理运行仓储
      * @param store 对象存储，保存丢弃输出的运行附件
      * @param properties 运行参数
      */
     public ExtractEduJobHandler(
-            TextUnitRepository textUnits,
+            TextUnitRepository textUnitRepo,
             ContextAssembler assembler,
-            EduModelGateway models,
+            EduModelGateway eduModelGateway,
             EduBatchWriter writer,
-            JobRepository jobs,
-            ProcessingRunRepository runs,
+            JobRepository jobRepo,
+            ProcessingRunRepository processingRunRepo,
             S3AssetStore store,
             OntoTraceProperties properties) {
-        this.textUnits = textUnits;
+        this.textUnitRepo = textUnitRepo;
         this.assembler = assembler;
-        this.models = models;
+        this.eduModelGateway = eduModelGateway;
         this.writer = writer;
-        this.jobs = jobs;
-        this.runs = runs;
+        this.jobRepo = jobRepo;
+        this.processingRunRepo = processingRunRepo;
         this.store = store;
         this.properties = properties;
     }
@@ -97,7 +97,7 @@ public class ExtractEduJobHandler implements JobHandler {
     @Override
     public void execute(Job job) {
         UUID versionId = job.getDocumentVersionId();
-        List<TextUnit> units = textUnits.findByDocumentVersionIdOrderBySeqAsc(versionId);
+        List<TextUnit> units = textUnitRepo.findByDocumentVersionIdOrderBySeqAsc(versionId);
         UUID targetId = job.getTargetTextUnitId();
         String pathPrefix = loadPathPrefix(job);
         List<UUID> prefixUnitIds = pathPrefix == null
@@ -112,13 +112,13 @@ public class ExtractEduJobHandler implements JobHandler {
         job.setNew(false);
         job.setTotal(indexes.size());
         job.setStage("generating");
-        jobs.save(job);
+        jobRepo.save(job);
         RunStats stats = new RunStats();
         try {
             int done = 0;
             for (int i : indexes) {
                 ContextAssembler.Assembled assembled = assembler.assemble(units, i);
-                EduModelGateway.EduGenerationResult generated = models.generate(
+                EduModelGateway.EduGenerationResult generated = eduModelGateway.generate(
                         new EduModelGateway.EduGenerationRequest(assembled.prompt(), assembled.targetText()));
                 stats.addGeneration(generated);
                 List<EduValidator.ModelEdu> dropped = new ArrayList<>();
@@ -140,7 +140,7 @@ public class ExtractEduJobHandler implements JobHandler {
                 }
                 done++;
                 job.setProgress(done);
-                jobs.save(job);
+                jobRepo.save(job);
             }
             finishRun(run, stats, true, null);
         } catch (Exception ex) {
@@ -179,7 +179,7 @@ public class ExtractEduJobHandler implements JobHandler {
                 .status("running")
                 .createdAt(Instant.now())
                 .build();
-        runs.save(run);
+        processingRunRepo.save(run);
         return run;
     }
 
@@ -198,9 +198,9 @@ public class ExtractEduJobHandler implements JobHandler {
         run.setLatencyMs((int) Math.min(stats.latencyMs, Integer.MAX_VALUE));
         run.setAttachmentObjectKey(stats.attachmentKey);
         run.setFinishedAt(Instant.now());
-        runs.save(run);
-        runs.setReviewSummary(run.getId(), EduJsonMapper.write(stats.reviewSummary(error)));
-        runs.setParameters(
+        processingRunRepo.save(run);
+        processingRunRepo.setReviewSummary(run.getId(), EduJsonMapper.write(stats.reviewSummary(error)));
+        processingRunRepo.setParameters(
                 run.getId(),
                 EduJsonMapper.write(new RunParameters("runs/" + run.getId() + "/", stats.dropped, error)));
         if (!succeeded) {
@@ -225,7 +225,7 @@ public class ExtractEduJobHandler implements JobHandler {
     }
 
     private String loadPathPrefix(Job job) {
-        String json = jobs.findPayload(job.getId()).orElse(null);
+        String json = jobRepo.findPayload(job.getId()).orElse(null);
         if (json == null || json.isBlank() || "null".equals(json)) {
             return null;
         }
@@ -287,7 +287,7 @@ public class ExtractEduJobHandler implements JobHandler {
         SourceLocator.Location primary = locations.getFirst();
         boolean reviewEnabled = properties.getAi().isReviewEnabled();
         EduModelGateway.EduReviewResult review = reviewEnabled
-                ? models.review(new EduModelGateway.EduReviewRequest(assembled.prompt(), modelEdu))
+                ? eduModelGateway.review(new EduModelGateway.EduReviewRequest(assembled.prompt(), modelEdu))
                 : EduModelGateway.SKIPPED;
         boolean autoActive = (!reviewEnabled || review.passed() && review.flags().isEmpty())
                 && !modelEdu.usedExternalKnowledge()

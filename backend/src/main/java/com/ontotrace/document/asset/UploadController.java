@@ -23,15 +23,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/uploads")
 public class UploadController {
 
-    private final UploadService uploads;
+    private final UploadService uploadService;
 
     /**
      * 创建控制器。
      *
-     * @param uploads 上传服务
+     * @param uploadService 上传服务
      */
-    public UploadController(UploadService uploads) {
-        this.uploads = uploads;
+    public UploadController(UploadService uploadService) {
+        this.uploadService = uploadService;
     }
 
     /**
@@ -43,7 +43,7 @@ public class UploadController {
      */
     @PostMapping
     public UploadResponse create(@AuthenticationPrincipal CurrentUser user, @Valid @RequestBody CreateUploadRequest request) {
-        UploadService.UploadCreated created = uploads.create(
+        UploadService.UploadCreated created = uploadService.create(
                 user,
                 request.documentId(),
                 request.filename(),
@@ -63,7 +63,7 @@ public class UploadController {
      */
     @PostMapping("/{uploadId}/complete")
     public CompleteResponse complete(@AuthenticationPrincipal CurrentUser user, @PathVariable UUID uploadId) {
-        return new CompleteResponse(uploads.complete(user, uploadId).toString());
+        return new CompleteResponse(uploadService.complete(user, uploadId).toString());
     }
 
     /**

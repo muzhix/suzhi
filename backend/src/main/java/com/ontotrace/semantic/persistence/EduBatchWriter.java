@@ -20,22 +20,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class EduBatchWriter {
 
-    private final EduRepository edus;
-    private final EduSourceRefRepository sources;
-    private final EduArgumentRepository arguments;
+    private final EduRepository eduRepo;
+    private final EduSourceRefRepository eduSourceRefRepo;
+    private final EduArgumentRepository eduArgumentRepo;
 
     /**
      * 创建写入器。
      *
-     * @param edus EDU 仓储
-     * @param sources 来源仓储
-     * @param arguments 参数仓储
+     * @param eduRepo EDU 仓储
+     * @param eduSourceRefRepo 来源仓储
+     * @param eduArgumentRepo 参数仓储
      */
     public EduBatchWriter(
-            EduRepository edus, EduSourceRefRepository sources, EduArgumentRepository arguments) {
-        this.edus = edus;
-        this.sources = sources;
-        this.arguments = arguments;
+            EduRepository eduRepo, EduSourceRefRepository eduSourceRefRepo, EduArgumentRepository eduArgumentRepo) {
+        this.eduRepo = eduRepo;
+        this.eduSourceRefRepo = eduSourceRefRepo;
+        this.eduArgumentRepo = eduArgumentRepo;
     }
 
     /**
@@ -48,9 +48,9 @@ public class EduBatchWriter {
      */
     @Transactional
     public void write(Edu edu, List<EduSourceRef> sourceRefs, List<EduArgument> eduArguments) {
-        edus.save(edu);
-        sources.saveAll(sourceRefs);
-        arguments.saveAll(eduArguments);
+        eduRepo.save(edu);
+        eduSourceRefRepo.saveAll(sourceRefs);
+        eduArgumentRepo.saveAll(eduArguments);
     }
 
     /**
@@ -65,18 +65,18 @@ public class EduBatchWriter {
     @Transactional
     public int deleteExisting(UUID documentVersionId, UUID textUnitId, List<UUID> textUnitIds) {
         if (textUnitId != null) {
-            return deleteByEduIds(documentVersionId, sources.findEduIdsByTextUnitId(textUnitId), textUnitId);
+            return deleteByEduIds(documentVersionId, eduSourceRefRepo.findEduIdsByTextUnitId(textUnitId), textUnitId);
         }
         if (textUnitIds != null) {
             if (textUnitIds.isEmpty()) {
                 return 0;
             }
-            return deleteByEduIds(documentVersionId, sources.findEduIdsByTextUnitIdIn(textUnitIds), null);
+            return deleteByEduIds(documentVersionId, eduSourceRefRepo.findEduIdsByTextUnitIdIn(textUnitIds), null);
         }
-        arguments.deleteByDocumentVersionId(documentVersionId);
-        sources.deleteByDocumentVersionId(documentVersionId);
-        long count = edus.countByDocumentVersionId(documentVersionId);
-        edus.deleteByDocumentVersionId(documentVersionId);
+        eduArgumentRepo.deleteByDocumentVersionId(documentVersionId);
+        eduSourceRefRepo.deleteByDocumentVersionId(documentVersionId);
+        long count = eduRepo.countByDocumentVersionId(documentVersionId);
+        eduRepo.deleteByDocumentVersionId(documentVersionId);
         if (count > 0) {
             log.info("deleted edu versionId={} count={}", documentVersionId, count);
         }
@@ -99,9 +99,9 @@ public class EduBatchWriter {
         if (eduIds == null || eduIds.isEmpty()) {
             return 0;
         }
-        arguments.deleteByEduIdIn(eduIds);
-        sources.deleteByEduIdIn(eduIds);
-        edus.deleteByIdIn(eduIds);
+        eduArgumentRepo.deleteByEduIdIn(eduIds);
+        eduSourceRefRepo.deleteByEduIdIn(eduIds);
+        eduRepo.deleteByIdIn(eduIds);
         log.info("deleted edu versionId={} textUnitId={} count={}", documentVersionId, textUnitId, eduIds.size());
         return eduIds.size();
     }
