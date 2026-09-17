@@ -294,12 +294,22 @@ public class TextStructureParser {
         return fallback;
     }
 
-    static String interpolate(String template, Matcher matcher, String tocVolume) {
+    /**
+     * 用正则分组和目录反查结果填模板。
+     *
+     * @param template 模板，{@code {tocVolume}} 为卷号，{@code {tocKey}} 为目录篇名
+     * @param matcher 当前标题
+     * @param tocVolume 目录卷号，可空
+     * @param tocKey 目录篇名，可空
+     * @return 替换后的文本
+     */
+    static String interpolate(String template, Matcher matcher, String tocVolume, String tocKey) {
         if (template == null || template.isBlank()) {
             return matcher.group();
         }
         String out = template;
         out = out.replace("{tocVolume}", tocVolume == null ? "" : tocVolume);
+        out = out.replace("{tocKey}", tocKey == null ? "" : tocKey);
         for (int i = matcher.groupCount(); i >= 1; i--) {
             String g = matcher.group(i);
             out = out.replace("$" + i, g == null ? "" : g);
@@ -394,17 +404,18 @@ public class TextStructureParser {
             Matcher matcher = heading.matcher;
             StructureProfile.HeadingRule rule = heading.rule;
             String tocVolume = null;
+            String tocKey = null;
             if (rule.tocKeyTemplate() != null && profile.toc() != null && profile.toc().lookupVolume()) {
-                String key = normalize(interpolate(rule.tocKeyTemplate(), matcher, null));
-                tocVolume = toc.volumeByKey.get(key);
+                tocKey = normalize(interpolate(rule.tocKeyTemplate(), matcher, null, null));
+                tocVolume = toc.volumeByKey.get(tocKey);
                 if (tocVolume != null) {
-                    usedTocKeys.add(key);
+                    usedTocKeys.add(tocKey);
                 } else {
-                    warnings.add("目录未对照：" + key);
-                    tocVolume = key;
+                    warnings.add("目录未对照：" + tocKey);
+                    tocVolume = tocKey;
                 }
             }
-            String label = interpolate(rule.label() == null ? "$0" : rule.label(), matcher, tocVolume);
+            String label = interpolate(rule.label() == null ? "$0" : rule.label(), matcher, tocVolume, tocKey);
             if (pendingWang != null && "nian".equals(rule.id()) && (label.equals("元年") || label.startsWith("元年"))) {
                 label = pendingWang + label;
             }
@@ -412,7 +423,7 @@ public class TextStructureParser {
             if (rule.replacesPath()) {
                 List<String> segs = new ArrayList<>();
                 for (String template : rule.pathTemplate()) {
-                    String part = interpolate(template, matcher, tocVolume);
+                    String part = interpolate(template, matcher, tocVolume, tocKey);
                     if (part != null && !part.isBlank()) {
                         segs.add(part);
                     }
@@ -433,6 +444,9 @@ public class TextStructureParser {
             }
             if (currentPath.isBlank()) {
                 currentPath = "文前";
+            }
+            if (tocKey != null) {
+                log.debug("heading path={} tocVolume={} tocKey={}", currentPath, tocVolume, tocKey);
             }
         }
     }

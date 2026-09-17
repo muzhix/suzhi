@@ -130,13 +130,20 @@ class StructureExtractionIT {
         assertNotNull(versionId);
         List<TextUnit> units = textUnitRepo.findByDocumentVersionIdOrderBySeqAsc(versionId);
         assertFalse(units.isEmpty());
-        assertTrue(units.stream().allMatch(unit -> unit.getPath().contains("/")));
+        assertEquals(
+                List.of(
+                        "卷一 本纪第一 高祖",
+                        "卷一 本纪第一 高祖",
+                        "卷二 本纪第二 太宗上",
+                        "卷二 本纪第二 太宗上",
+                        "卷五十一 列传第一 后妃上"),
+                units.stream().map(TextUnit::getPath).toList());
         assertTrue(units.stream().noneMatch(unit -> unit.getPath().matches("p\\d+")));
 
         List<TextUnit> prefix = textUnitRepo.findByDocumentVersionIdAndPathPrefix(
-                versionId, "本纪/卷一/高祖", StructurePaths.likeLiteral("本纪/卷一/高祖") + "/%");
+                versionId, "卷一 本纪第一 高祖", StructurePaths.likeLiteral("卷一 本纪第一 高祖") + "/%");
         assertEquals(2, prefix.size());
-        assertTrue(prefix.stream().allMatch(unit -> "本纪/卷一/高祖".equals(unit.getPath())));
+        assertTrue(prefix.stream().allMatch(unit -> "卷一 本纪第一 高祖".equals(unit.getPath())));
     }
 
     /**
