@@ -7,6 +7,11 @@ import com.ontotrace.document.asset.UploadService;
 import com.ontotrace.document.asset.UploadSession;
 import com.ontotrace.document.parser.DocumentParser;
 import com.ontotrace.document.parser.TextDocumentParser;
+import com.ontotrace.document.parser.structure.ExtractJobPayload;
+import com.ontotrace.document.parser.structure.StructureJson;
+import com.ontotrace.document.parser.structure.StructureProfile;
+import com.ontotrace.document.parser.structure.TextStructureParser;
+import com.ontotrace.web.ApiExceptionHandler.UnprocessableException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +22,7 @@ import org.springframework.stereotype.Component;
 /**
  * TXT/Markdown 显式提取，生成不可变版本和文本单元。S3 下载与解析在数据库事务外执行，
  * 版本写入由 {@link ExtractContentWriter} 以短事务完成，运行信息记录到处理运行。
+ * 有结构方案时写入语义 path；无方案时保持空行切段 {@code pN}。
  *
  * @author hanbd
  */
@@ -28,8 +34,10 @@ public class ExtractContentJobHandler implements JobHandler {
     private final AssetRepository assets;
     private final S3AssetStore store;
     private final TextDocumentParser parser;
+    private final TextStructureParser structureParser;
     private final ExtractContentWriter writer;
     private final ProcessingRunRepository runs;
+    private final JobRepository jobs;
 
     /**
      * 创建处理器。
@@ -38,22 +46,28 @@ public class ExtractContentJobHandler implements JobHandler {
      * @param assets 资产仓储
      * @param store 对象存储
      * @param parser 文本解析器
+     * @param structureParser 结构解析器
      * @param writer 版本写入器
      * @param runs 处理运行仓储
+     * @param jobs 任务仓储
      */
     public ExtractContentJobHandler(
             UploadService uploads,
             AssetRepository assets,
             S3AssetStore store,
             TextDocumentParser parser,
+            TextStructureParser structureParser,
             ExtractContentWriter writer,
-            ProcessingRunRepository runs) {
+            ProcessingRunRepository runs,
+            JobRepository jobs) {
         this.uploads = uploads;
         this.assets = assets;
         this.store = store;
         this.parser = parser;
+        this.structureParser = structureParser;
         this.writer = writer;
         this.runs = runs;
+        this.jobs = jobs;
     }
 
     /**
@@ -95,19 +109,33 @@ public class ExtractContentJobHandler implements JobHandler {
             if (!"succeeded".equals(parsed.status())) {
                 throw new IllegalStateException(parsed.error());
             }
+            StructureProfile profile = loadProfile(job);
+            List<TextStructureParser.Unit> units;
+            String parserId = "text-v1";
+            if (profile == null) {
+                units = splitUnits(parsed.text());
+            } else {
+                TextStructureParser.ParseResult structured = structureParser.parse(parsed.text(), profile);
+                if (!structured.acceptable()) {
+                    throw new UnprocessableException("结构识别过差，未写入版本：" + structured.summary());
+                }
+                units = structured.units();
+                parserId = "text-structure-v1";
+                runs.setParameters(run.getId(), StructureJson.write(profile));
+            }
             UUID versionId = writer.writeVersion(
-                    job,
-                    job.getDocumentId(),
-                    asset.getId(),
-                    asset.getChecksumSha256(),
-                    "text-v1",
-                    splitUnits(parsed.text()));
+                    job, job.getDocumentId(), asset.getId(), asset.getChecksumSha256(), parserId, units);
             run.setNew(false);
             run.setInputDocumentVersionId(versionId);
             run.setStatus("succeeded");
             run.setFinishedAt(Instant.now());
             runs.save(run);
-            log.info("extracted content jobId={} versionId={}", job.getId(), versionId);
+            log.info(
+                    "extracted content jobId={} versionId={} scheme={} units={}",
+                    job.getId(),
+                    versionId,
+                    profile == null ? "none" : profile.id(),
+                    units.size());
         } catch (Exception ex) {
             run.setNew(false);
             run.setStatus("failed");
@@ -117,17 +145,31 @@ public class ExtractContentJobHandler implements JobHandler {
         }
     }
 
-    private static List<String> splitUnits(String text) {
+    private StructureProfile loadProfile(Job job) {
+        String json = jobs.findPayload(job.getId()).orElse(null);
+        if (json == null || json.isBlank() || "null".equals(json)) {
+            return null;
+        }
+        ExtractJobPayload payload = StructureJson.read(json, ExtractJobPayload.class);
+        if (payload == null || payload.profile() == null) {
+            return null;
+        }
+        return payload.profile();
+    }
+
+    private static List<TextStructureParser.Unit> splitUnits(String text) {
         String[] parts = text.split("\\n\\s*\\n");
-        List<String> units = new ArrayList<>();
+        List<TextStructureParser.Unit> units = new ArrayList<>();
+        int seq = 1;
         for (String part : parts) {
             String trimmed = part.trim();
             if (!trimmed.isEmpty()) {
-                units.add(trimmed);
+                units.add(new TextStructureParser.Unit("p" + seq, trimmed));
+                seq++;
             }
         }
         if (units.isEmpty()) {
-            units.add(text.trim());
+            units.add(new TextStructureParser.Unit("p1", text.trim()));
         }
         return units;
     }

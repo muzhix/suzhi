@@ -1,0 +1,25 @@
+{
+  "id": "jizhuan-toc-same",
+  "name": "纪传体·目录同形",
+  "toc": {
+    "present": true,
+    "linePattern": "^(卷[一二三四五六七八九十百千万零〇0-9]+)\\s+(.+)$",
+    "usage": "ignore",
+    "dropLeadingCopy": true
+  },
+  "headings": [
+    {
+      "id": "juan-pian",
+      "pattern": "^(卷[一二三四五六七八九十百千万零〇0-9]+)\\s+(.+)$",
+      "pathTemplate": ["$1", "$2"],
+      "nodeType": "pian"
+    }
+  ],
+  "alignment": "title_has_volume",
+  "paragraph": "blank_or_indent",
+  "neighbor": {
+    "noCrossJuan": true,
+    "noCrossNian": false
+  },
+  "skipEduNodeTypes": ["toc", "table", "appendix", "front"]
+}

@@ -48,7 +48,11 @@ const crumbs = computed((): Crumb[] => {
     if (documentId.value) {
       items.push({
         label: documentQuery.data.value?.title ?? '文档',
+        to: route.path.includes('/read') ? `/documents/${documentId.value}` : undefined,
       })
+      if (route.path.includes('/read')) {
+        items.push({ label: '阅读' })
+      }
     }
     return items
   }

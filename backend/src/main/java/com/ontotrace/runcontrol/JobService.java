@@ -6,6 +6,12 @@ import com.ontotrace.document.DocumentVersion;
 import com.ontotrace.document.DocumentVersionRepository;
 import com.ontotrace.document.TextUnit;
 import com.ontotrace.document.TextUnitRepository;
+import com.ontotrace.document.parser.structure.ExtractJobPayload;
+import com.ontotrace.document.parser.structure.StructureJson;
+import com.ontotrace.document.parser.structure.StructurePaths;
+import com.ontotrace.document.parser.structure.StructureProfile;
+import com.ontotrace.document.parser.structure.StructureSchemeRequest;
+import com.ontotrace.document.parser.structure.DocumentStructureService;
 import com.ontotrace.web.ApiExceptionHandler.ConflictException;
 import com.ontotrace.web.ApiExceptionHandler.UnprocessableException;
 import com.ontotrace.security.CurrentUser;
@@ -43,6 +49,7 @@ public class JobService {
     private final DocumentService documents;
     private final DocumentVersionRepository versions;
     private final TextUnitRepository textUnits;
+    private final DocumentStructureService structure;
     private final OntoTraceProperties properties;
     private final Map<String, JobHandler> handlers;
 
@@ -53,6 +60,7 @@ public class JobService {
      * @param documents 文档服务
      * @param versions 版本文仓
      * @param textUnits 文本单元仓储
+     * @param structure 结构方案
      * @param properties 运行参数
      * @param handlers 任务处理器
      */
@@ -61,12 +69,14 @@ public class JobService {
             DocumentService documents,
             DocumentVersionRepository versions,
             TextUnitRepository textUnits,
+            DocumentStructureService structure,
             OntoTraceProperties properties,
             List<JobHandler> handlers) {
         this.jobs = jobs;
         this.documents = documents;
         this.versions = versions;
         this.textUnits = textUnits;
+        this.structure = structure;
         this.properties = properties;
         this.handlers = handlers.stream().collect(Collectors.toMap(JobHandler::type, Function.identity()));
     }
@@ -78,18 +88,21 @@ public class JobService {
      * @param user 当前用户
      * @param documentId 文档标识
      * @param idempotencyKey 客户端幂等键，可空
+     * @param request 可选结构方案；空则空行切段
      * @return 任务
      */
     @Transactional
-    public Job submitExtract(CurrentUser user, UUID documentId, String idempotencyKey) {
+    public Job submitExtract(CurrentUser user, UUID documentId, String idempotencyKey, StructureSchemeRequest request) {
         documents.requireEdit(user, documentId);
+        StructureProfile profile = structure.resolve(request);
+        String fingerprint = profile == null ? "none" : profile.id() + ":" + Math.abs(StructureJson.write(profile).hashCode());
         if (hasClientKey(idempotencyKey)) {
             return reuseClientKey(idempotencyKey, user, documentId)
-                    .orElseGet(() -> create(EXTRACT_CONTENT, user, documentId, null, null, idempotencyKey));
+                    .orElseGet(() -> createExtract(user, documentId, idempotencyKey, profile));
         }
-        String base = EXTRACT_CONTENT + ":" + documentId + ":";
+        String base = EXTRACT_CONTENT + ":" + documentId + ":" + fingerprint + ":";
         return jobs.findFirstByIdempotencyKeyStartingWithAndStatusInOrderByCreatedAtDesc(base, ACTIVE_STATUSES)
-                .orElseGet(() -> create(EXTRACT_CONTENT, user, documentId, null, null, nextSequenceKey(base)));
+                .orElseGet(() -> createExtract(user, documentId, nextSequenceKey(base), profile));
     }
 
     /**
@@ -99,33 +112,68 @@ public class JobService {
      * @param user 当前用户
      * @param versionId 版本标识
      * @param idempotencyKey 客户端幂等键，可空
-     * @param textUnitId 局部重抽的文本单元，空表示全文
+     * @param textUnitId 局部重抽的文本单元
+     * @param pathPrefix 按 path 前缀抽取
+     * @param confirmFullDocument 确认全书抽取
      * @return 任务
      */
     @Transactional
-    public Job submitEdu(CurrentUser user, UUID versionId, String idempotencyKey, UUID textUnitId) {
+    public Job submitEdu(
+            CurrentUser user,
+            UUID versionId,
+            String idempotencyKey,
+            UUID textUnitId,
+            String pathPrefix,
+            boolean confirmFullDocument) {
         if ("disabled".equals(properties.getAi().getMode())) {
             throw new UnprocessableException("未配置模型。设置 AI_API_KEY 并将 ontotrace.ai.mode 设为 live，或本地使用 stub");
         }
         DocumentVersion version = versions.findById(versionId).orElseThrow(() -> new NotFoundException("文档版本不存在"));
         documents.requireEdit(user, version.getDocumentId());
+        String prefix = pathPrefix == null || pathPrefix.isBlank() ? null : pathPrefix;
+        if (textUnitId != null && prefix != null) {
+            throw new UnprocessableException("不能同时指定文本单元和 path 前缀");
+        }
         if (textUnitId != null) {
             TextUnit unit = textUnits.findById(textUnitId).orElseThrow(() -> new NotFoundException("文本单元不存在"));
             if (!versionId.equals(unit.getDocumentVersionId())) {
                 throw new UnprocessableException("文本单元不属于该版本");
             }
         }
+        if (prefix != null) {
+            List<TextUnit> scoped = textUnits.findByDocumentVersionIdAndPathPrefix(
+                    versionId, prefix, StructurePaths.likeLiteral(prefix) + "/%");
+            if (scoped.isEmpty()) {
+                throw new UnprocessableException("该 path 下没有文本单元");
+            }
+        }
+        if (textUnitId == null && prefix == null && !confirmFullDocument) {
+            throw new UnprocessableException("全书抽取需要选到卷或更细，或勾选全文并查看预算");
+        }
+        String range = textUnitId != null ? textUnitId.toString() : prefix != null ? "path:" + prefix : "all";
         if (hasClientKey(idempotencyKey)) {
             return reuseClientKey(idempotencyKey, user, version.getDocumentId())
-                    .orElseGet(() -> create(
-                            EXTRACT_EDU, user, version.getDocumentId(), versionId, textUnitId, idempotencyKey));
+                    .orElseGet(() -> createEdu(user, version.getDocumentId(), versionId, textUnitId, prefix, idempotencyKey));
         }
-        String range = textUnitId == null ? "all" : textUnitId.toString();
         String base = EXTRACT_EDU + ":" + versionId + ":" + properties.getAi().getGeneratePromptVersion() + ":"
                 + range + ":";
         return jobs.findFirstByIdempotencyKeyStartingWithAndStatusInOrderByCreatedAtDesc(base, ACTIVE_STATUSES)
-                .orElseGet(() -> create(
-                        EXTRACT_EDU, user, version.getDocumentId(), versionId, textUnitId, nextSequenceKey(base)));
+                .orElseGet(() -> createEdu(
+                        user, version.getDocumentId(), versionId, textUnitId, prefix, nextSequenceKey(base)));
+    }
+
+    /**
+     * 提交 EDU 抽取。未指定范围时视为确认全文，供既有集成测试复用。
+     *
+     * @param user 当前用户
+     * @param versionId 版本标识
+     * @param idempotencyKey 客户端幂等键，可空
+     * @param textUnitId 局部重抽的文本单元，空表示全文
+     * @return 任务
+     */
+    @Transactional
+    public Job submitEdu(CurrentUser user, UUID versionId, String idempotencyKey, UUID textUnitId) {
+        return submitEdu(user, versionId, idempotencyKey, textUnitId, null, textUnitId == null);
     }
 
     /**
@@ -297,6 +345,30 @@ public class JobService {
     private String nextSequenceKey(String base) {
         return base + (jobs.countByIdempotencyKeyStartingWith(base) + 1);
     }
+
+    private Job createExtract(CurrentUser user, UUID documentId, String key, StructureProfile profile) {
+        Job job = create(EXTRACT_CONTENT, user, documentId, null, null, key);
+        if (profile != null) {
+            jobs.setPayload(job.getId(), StructureJson.write(new ExtractJobPayload(profile.id(), profile)));
+        }
+        return job;
+    }
+
+    private Job createEdu(
+            CurrentUser user, UUID documentId, UUID versionId, UUID textUnitId, String pathPrefix, String key) {
+        Job job = create(EXTRACT_EDU, user, documentId, versionId, textUnitId, key);
+        if (pathPrefix != null) {
+            jobs.setPayload(job.getId(), StructureJson.write(new EduPathPayload(pathPrefix)));
+        }
+        return job;
+    }
+
+    /**
+     * EDU 任务的 path 前缀负载。
+     *
+     * @param pathPrefix 结构路径前缀
+     */
+    public record EduPathPayload(String pathPrefix) {}
 
     private Job create(
             String type, CurrentUser user, UUID documentId, UUID versionId, UUID textUnitId, String key) {

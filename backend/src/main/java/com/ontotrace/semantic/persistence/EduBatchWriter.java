@@ -55,8 +55,36 @@ public class EduBatchWriter {
 
     /**
      * 重跑前删除范围内旧 EDU 及其来源、参数（含上次尝试的半成品）。
-     * 范围可以是整个版本，或引用某一文本单元的 EDU——引用不分用途，
-     * 把该单元作为补全上下文引用的 EDU 也会被删除。
+     * 范围可以是整个版本、引用某一文本单元的 EDU，或引用一组 path 前缀单元的 EDU。
+     *
+     * @param documentVersionId 固定文档版本
+     * @param textUnitId 局部重跑的文本单元，空表示未按单段
+     * @param textUnitIds path 前缀下的文本单元，空表示未按前缀
+     * @return 删除的 EDU 条数
+     */
+    @Transactional
+    public int deleteExisting(UUID documentVersionId, UUID textUnitId, List<UUID> textUnitIds) {
+        if (textUnitId != null) {
+            return deleteByEduIds(documentVersionId, sources.findEduIdsByTextUnitId(textUnitId), textUnitId);
+        }
+        if (textUnitIds != null) {
+            if (textUnitIds.isEmpty()) {
+                return 0;
+            }
+            return deleteByEduIds(documentVersionId, sources.findEduIdsByTextUnitIdIn(textUnitIds), null);
+        }
+        arguments.deleteByDocumentVersionId(documentVersionId);
+        sources.deleteByDocumentVersionId(documentVersionId);
+        long count = edus.countByDocumentVersionId(documentVersionId);
+        edus.deleteByDocumentVersionId(documentVersionId);
+        if (count > 0) {
+            log.info("deleted edu versionId={} count={}", documentVersionId, count);
+        }
+        return (int) count;
+    }
+
+    /**
+     * 重跑前删除范围内旧 EDU。范围可以是整个版本，或引用某一文本单元的 EDU。
      *
      * @param documentVersionId 固定文档版本
      * @param textUnitId 局部重跑的文本单元，空表示全文
@@ -64,18 +92,11 @@ public class EduBatchWriter {
      */
     @Transactional
     public int deleteExisting(UUID documentVersionId, UUID textUnitId) {
-        if (textUnitId == null) {
-            arguments.deleteByDocumentVersionId(documentVersionId);
-            sources.deleteByDocumentVersionId(documentVersionId);
-            long count = edus.countByDocumentVersionId(documentVersionId);
-            edus.deleteByDocumentVersionId(documentVersionId);
-            if (count > 0) {
-                log.info("deleted edu versionId={} count={}", documentVersionId, count);
-            }
-            return (int) count;
-        }
-        List<UUID> eduIds = sources.findEduIdsByTextUnitId(textUnitId);
-        if (eduIds.isEmpty()) {
+        return deleteExisting(documentVersionId, textUnitId, null);
+    }
+
+    private int deleteByEduIds(UUID documentVersionId, List<UUID> eduIds, UUID textUnitId) {
+        if (eduIds == null || eduIds.isEmpty()) {
             return 0;
         }
         arguments.deleteByEduIdIn(eduIds);

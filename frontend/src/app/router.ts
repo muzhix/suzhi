@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginPage from '@/features/auth/LoginPage.vue'
 import DocumentListPage from '@/features/documents/DocumentListPage.vue'
 import DocumentDetailPage from '@/features/documents/DocumentDetailPage.vue'
+import ReaderPage from '@/features/reader/ReaderPage.vue'
 import SearchPage from '@/features/search/SearchPage.vue'
 import UserListPage from '@/features/users/UserListPage.vue'
 
@@ -14,7 +15,7 @@ export const router = createRouter({
     { path: '/documents/:documentId', component: DocumentDetailPage },
     {
       path: '/documents/:documentId/versions/:versionId/read',
-      redirect: (to) => `/documents/${to.params.documentId}`,
+      component: ReaderPage,
     },
     { path: '/search', component: SearchPage },
     { path: '/users', component: UserListPage },

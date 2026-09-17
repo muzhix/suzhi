@@ -4,6 +4,7 @@ import com.ontotrace.document.DocumentVersion;
 import com.ontotrace.document.DocumentVersionRepository;
 import com.ontotrace.document.TextUnit;
 import com.ontotrace.document.TextUnitRepository;
+import com.ontotrace.document.parser.structure.TextStructureParser;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,19 +40,24 @@ public class ExtractContentWriter {
     }
 
     /**
-     * 写入不可变版本与文本单元，并持久任务进度。
+     * 写入不可变版本与文本单元，并持久任务进度。path 由调用方算好，本类不再生成 {@code pN}。
      *
      * @param job 任务
      * @param documentId 文档标识
      * @param assetId 资产标识
      * @param contentFingerprint 内容指纹
      * @param parserId 解析器标识
-     * @param unitTexts 顺序文本单元内容
+     * @param units 已算好的 path 与正文
      * @return 版本标识
      */
     @Transactional
     public UUID writeVersion(
-            Job job, UUID documentId, UUID assetId, String contentFingerprint, String parserId, List<String> unitTexts) {
+            Job job,
+            UUID documentId,
+            UUID assetId,
+            String contentFingerprint,
+            String parserId,
+            List<TextStructureParser.Unit> units) {
         int nextNo = versions.findByDocumentIdOrderByVersionNoDesc(documentId).stream()
                 .mapToInt(DocumentVersion::getVersionNo)
                 .max()
@@ -70,13 +76,13 @@ public class ExtractContentWriter {
                 .build());
         List<TextUnit> rows = new ArrayList<>();
         int seq = 1;
-        for (String unit : unitTexts) {
+        for (TextStructureParser.Unit unit : units) {
             rows.add(TextUnit.builder()
                     .id(UUID.randomUUID())
                     .documentVersionId(versionId)
                     .seq(seq)
-                    .path("p" + seq)
-                    .displayText(unit)
+                    .path(unit.path())
+                    .displayText(unit.text())
                     .pageNo(null)
                     .build());
             seq++;

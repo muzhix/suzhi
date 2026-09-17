@@ -40,6 +40,15 @@ public interface EduSourceRefRepository extends ListCrudRepository<EduSourceRef,
     List<UUID> findEduIdsByTextUnitId(UUID textUnitId);
 
     /**
+     * 按多个文本单元找到关联 EDU。
+     *
+     * @param textUnitIds 文本单元
+     * @return EDU 标识
+     */
+    @Query("SELECT DISTINCT edu_id FROM edu_source_ref WHERE text_unit_id IN (:textUnitIds)")
+    List<UUID> findEduIdsByTextUnitIdIn(List<UUID> textUnitIds);
+
+    /**
      * 删除固定版本下来源。
      *
      * @param documentVersionId 版本标识
