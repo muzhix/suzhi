@@ -5,6 +5,7 @@
 3. 进行必要、合理的日志输出
 4. 前端组件尽量使用shadcn-vue、ai-element-vue原生组件
 5. 页面内容区不使用页面级主标题、副标题。页面名称由顶栏面包屑表示，不要在内容区再写一遍「文档库」「检索」等。登录页可以用卡片标题说明当前动作。表格列名、卡片区块名、弹窗标题不属于页面主副标题。
+6. Java 依赖注入字段按类型命名，不要用领域名词的复数。`XxxService` 字段叫 `xxxService`，例如 `DocumentService documentService`，不要叫 `documents`。`XxxRepository` 字段叫 `xxxRepo`，例如 `DocumentVersionRepository documentVersionRepo`，不要叫 `versions`。同类字段按类型统一，例如 `JobService` 一律 `jobService`，`TextUnitRepository` 一律 `textUnitRepo`。不要把 `documents`、`versions`、`uploads`、`jobs` 这类复数当注入字段名。
 
 
 # Writing Style

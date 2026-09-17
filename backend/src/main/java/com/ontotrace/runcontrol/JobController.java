@@ -24,15 +24,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class JobController {
 
-    private final JobService jobs;
+    private final JobService jobService;
 
     /**
      * 创建控制器。
      *
-     * @param jobs 任务服务
+     * @param jobService 任务服务
      */
-    public JobController(JobService jobs) {
-        this.jobs = jobs;
+    public JobController(JobService jobService) {
+        this.jobService = jobService;
     }
 
     /**
@@ -50,7 +50,7 @@ public class JobController {
             @PathVariable UUID documentId,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody(required = false) StructureSchemeRequest request) {
-        Job job = jobs.submitExtract(user, documentId, idempotencyKey, request);
+        Job job = jobService.submitExtract(user, documentId, idempotencyKey, request);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(JobResponse.from(job));
     }
 
@@ -72,7 +72,7 @@ public class JobController {
         UUID textUnitId = request == null ? null : request.textUnitId();
         String pathPrefix = request == null ? null : request.pathPrefix();
         boolean confirmFull = request != null && Boolean.TRUE.equals(request.confirmFullDocument());
-        Job job = jobs.submitEdu(user, versionId, idempotencyKey, textUnitId, pathPrefix, confirmFull);
+        Job job = jobService.submitEdu(user, versionId, idempotencyKey, textUnitId, pathPrefix, confirmFull);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(JobResponse.from(job));
     }
 
@@ -85,7 +85,7 @@ public class JobController {
      */
     @GetMapping("/jobs/{jobId}")
     public JobResponse get(@AuthenticationPrincipal CurrentUser user, @PathVariable UUID jobId) {
-        return JobResponse.from(jobs.get(user, jobId));
+        return JobResponse.from(jobService.get(user, jobId));
     }
 
     /**

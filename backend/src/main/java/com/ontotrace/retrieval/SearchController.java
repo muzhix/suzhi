@@ -25,15 +25,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/search")
 public class SearchController {
 
-    private final SearchService search;
+    private final SearchService searchService;
 
     /**
      * 创建控制器。
      *
-     * @param search 检索服务
+     * @param searchService 检索服务
      */
-    public SearchController(SearchService search) {
-        this.search = search;
+    public SearchController(SearchService searchService) {
+        this.searchService = searchService;
     }
 
     /**
@@ -46,7 +46,7 @@ public class SearchController {
     @PostMapping
     public SearchResponse search(
             @AuthenticationPrincipal CurrentUser user, @Valid @RequestBody SearchRequest request) {
-        return search.search(user, request.query());
+        return searchService.search(user, request.query());
     }
 
     /**
@@ -131,23 +131,23 @@ interface TextSearchRepository extends Repository<Document, UUID> {
 @Service
 class SearchService {
 
-    private final TextSearchRepository texts;
-    private final EduRepository edus;
+    private final TextSearchRepository textSearchRepo;
+    private final EduRepository eduRepo;
 
-    SearchService(TextSearchRepository texts, EduRepository edus) {
-        this.texts = texts;
-        this.edus = edus;
+    SearchService(TextSearchRepository textSearchRepo, EduRepository eduRepo) {
+        this.textSearchRepo = textSearchRepo;
+        this.eduRepo = eduRepo;
     }
 
     SearchController.SearchResponse search(CurrentUser user, String query) {
-        List<SearchController.TextHit> textHits = texts.searchText(user.id(), query).stream()
+        List<SearchController.TextHit> textHits = textSearchRepo.searchText(user.id(), query).stream()
                 .map(row -> new SearchController.TextHit(
                         row.textUnitId().toString(),
                         row.documentId().toString(),
                         row.documentVersionId().toString(),
                         row.snippet()))
                 .toList();
-        List<SearchController.EduHit> eduHits = edus.searchAccessible(user.id(), query).stream()
+        List<SearchController.EduHit> eduHits = eduRepo.searchAccessible(user.id(), query).stream()
                 .map(edu -> new SearchController.EduHit(
                         edu.getId().toString(), edu.getDocumentVersionId().toString(), edu.getText(), edu.getStatus()))
                 .toList();

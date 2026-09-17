@@ -24,15 +24,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/projects")
 public class ProjectController {
 
-    private final ProjectService projects;
+    private final ProjectService projectService;
 
     /**
      * 创建控制器。
      *
-     * @param projects 项目服务
+     * @param projectService 项目服务
      */
-    public ProjectController(ProjectService projects) {
-        this.projects = projects;
+    public ProjectController(ProjectService projectService) {
+        this.projectService = projectService;
     }
 
     /**
@@ -45,7 +45,7 @@ public class ProjectController {
     @PostMapping
     public ProjectResponse create(
             @AuthenticationPrincipal CurrentUser user, @Valid @RequestBody CreateProjectRequest request) {
-        return ProjectResponse.from(projects.create(user, request.name(), request.description()), List.of());
+        return ProjectResponse.from(projectService.create(user, request.name(), request.description()), List.of());
     }
 
     /**
@@ -57,7 +57,7 @@ public class ProjectController {
      */
     @GetMapping("/{projectId}")
     public ProjectResponse get(@AuthenticationPrincipal CurrentUser user, @PathVariable UUID projectId) {
-        ProjectService.ProjectDetail detail = projects.get(user, projectId);
+        ProjectService.ProjectDetail detail = projectService.get(user, projectId);
         return ProjectResponse.from(detail.project(), detail.visibleDocumentIds());
     }
 
@@ -73,7 +73,7 @@ public class ProjectController {
             @AuthenticationPrincipal CurrentUser user,
             @PathVariable UUID projectId,
             @Valid @RequestBody AddProjectDocumentRequest request) {
-        projects.addDocument(user, projectId, request.documentId(), request.documentVersionId());
+        projectService.addDocument(user, projectId, request.documentId(), request.documentVersionId());
     }
 
     /**

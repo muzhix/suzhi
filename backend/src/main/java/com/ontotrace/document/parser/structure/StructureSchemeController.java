@@ -20,15 +20,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class StructureSchemeController {
 
-    private final DocumentStructureService structure;
+    private final DocumentStructureService documentStructureService;
 
     /**
      * 创建控制器。
      *
-     * @param structure 结构服务
+     * @param documentStructureService 结构服务
      */
-    public StructureSchemeController(DocumentStructureService structure) {
-        this.structure = structure;
+    public StructureSchemeController(DocumentStructureService documentStructureService) {
+        this.documentStructureService = documentStructureService;
     }
 
     /**
@@ -38,7 +38,7 @@ public class StructureSchemeController {
      */
     @GetMapping("/structure-schemes")
     public List<SchemeResponse> list() {
-        return structure.listSchemes().stream().map(SchemeResponse::from).toList();
+        return documentStructureService.listSchemes().stream().map(SchemeResponse::from).toList();
     }
 
     /**
@@ -54,7 +54,7 @@ public class StructureSchemeController {
             @AuthenticationPrincipal CurrentUser user,
             @PathVariable UUID documentId,
             @RequestBody StructureSchemeRequest request) {
-        return PreviewResponse.from(structure.preview(user, documentId, request));
+        return PreviewResponse.from(documentStructureService.preview(user, documentId, request));
     }
 
     /**

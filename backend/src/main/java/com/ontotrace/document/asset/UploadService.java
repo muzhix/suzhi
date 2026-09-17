@@ -24,25 +24,25 @@ public class UploadService {
 
     private static final Set<String> ALLOWED_EXT = Set.of("txt", "md", "markdown");
 
-    private final UploadSessionRepository sessions;
-    private final AssetRepository assets;
+    private final UploadSessionRepository uploadSessionRepo;
+    private final AssetRepository assetRepo;
     private final S3AssetStore store;
-    private final DocumentService documents;
+    private final DocumentService documentService;
 
     /**
      * 创建服务。
      *
-     * @param sessions 上传会话仓储
-     * @param assets 资产仓储
+     * @param uploadSessionRepo 上传会话仓储
+     * @param assetRepo 资产仓储
      * @param store 对象存储
-     * @param documents 文档服务
+     * @param documentService 文档服务
      */
     public UploadService(
-            UploadSessionRepository sessions, AssetRepository assets, S3AssetStore store, DocumentService documents) {
-        this.sessions = sessions;
-        this.assets = assets;
+            UploadSessionRepository uploadSessionRepo, AssetRepository assetRepo, S3AssetStore store, DocumentService documentService) {
+        this.uploadSessionRepo = uploadSessionRepo;
+        this.assetRepo = assetRepo;
         this.store = store;
-        this.documents = documents;
+        this.documentService = documentService;
     }
 
     /**
@@ -64,7 +64,7 @@ public class UploadService {
             long sizeBytes,
             String contentType,
             String checksumSha256) {
-        documents.requireEdit(user, documentId);
+        documentService.requireEdit(user, documentId);
         String ext = extension(filename);
         if (!ALLOWED_EXT.contains(ext)) {
             throw new UnprocessableException("B0 只接受 TXT 或 Markdown");
@@ -72,7 +72,7 @@ public class UploadService {
         UUID uploadId = UUID.randomUUID();
         String objectKey = "uploads/" + user.id() + "/" + uploadId + "/" + sanitize(filename);
         Instant now = Instant.now();
-        sessions.save(UploadSession.builder()
+        uploadSessionRepo.save(UploadSession.builder()
                 .id(uploadId)
                 .userId(user.id())
                 .documentId(documentId)
@@ -99,11 +99,11 @@ public class UploadService {
      */
     @Transactional
     public UUID complete(CurrentUser user, UUID uploadId) {
-        UploadSession session = sessions.findById(uploadId).orElseThrow(() -> new NotFoundException("上传会话不存在"));
+        UploadSession session = uploadSessionRepo.findById(uploadId).orElseThrow(() -> new NotFoundException("上传会话不存在"));
         if (!session.getUserId().equals(user.id())) {
             throw new NotFoundException("上传会话不存在");
         }
-        documents.requireEdit(user, session.getDocumentId());
+        documentService.requireEdit(user, session.getDocumentId());
         if (!"pending".equals(session.getStatus())) {
             throw new UnprocessableException("上传会话已完成或已失败，不能重复完成");
         }
@@ -133,7 +133,7 @@ public class UploadService {
             fail(session, "文件特征不是文本");
         }
         UUID assetId = UUID.randomUUID();
-        assets.save(Asset.builder()
+        assetRepo.save(Asset.builder()
                 .id(assetId)
                 .objectKey(session.getObjectKey())
                 .originalFilename(session.getOriginalFilename())
@@ -144,7 +144,7 @@ public class UploadService {
                 .build());
         session.setStatus("completed");
         session.setAssetId(assetId);
-        sessions.save(session);
+        uploadSessionRepo.save(session);
         log.info("completed upload uploadId={} assetId={}", uploadId, assetId);
         return assetId;
     }
@@ -156,13 +156,13 @@ public class UploadService {
      * @return 会话
      */
     public UploadSession requireCompleted(UUID documentId) {
-        return sessions.findFirstByDocumentIdAndStatusOrderByCreatedAtDesc(documentId, "completed")
+        return uploadSessionRepo.findFirstByDocumentIdAndStatusOrderByCreatedAtDesc(documentId, "completed")
                 .orElseThrow(() -> new UnprocessableException("请先完成 TXT/Markdown 上传"));
     }
 
     private void fail(UploadSession session, String message) {
         session.setStatus("failed");
-        sessions.save(session);
+        uploadSessionRepo.save(session);
         throw new UnprocessableException(message);
     }
 

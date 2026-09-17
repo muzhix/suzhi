@@ -20,17 +20,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UserService {
 
-    private final AppUserRepository users;
+    private final AppUserRepository appUserRepo;
     private final PasswordEncoder passwordEncoder;
 
     /**
      * 创建服务。
      *
-     * @param users 用户仓储
+     * @param appUserRepo 用户仓储
      * @param passwordEncoder 密码编码器
      */
-    public UserService(AppUserRepository users, PasswordEncoder passwordEncoder) {
-        this.users = users;
+    public UserService(AppUserRepository appUserRepo, PasswordEncoder passwordEncoder) {
+        this.appUserRepo = appUserRepo;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -41,7 +41,7 @@ public class UserService {
      * @return 用户列表
      */
     public List<AppUser> list(String q) {
-        return users.search(LikeQuery.contains(q));
+        return appUserRepo.search(LikeQuery.contains(q));
     }
 
     /**
@@ -55,7 +55,7 @@ public class UserService {
      */
     @Transactional
     public AppUser create(String username, String displayName, String password, String platformRole) {
-        users.findByUsername(username).ifPresent(existing -> {
+        appUserRepo.findByUsername(username).ifPresent(existing -> {
             throw new ConflictException("用户名已存在");
         });
         Instant now = Instant.now();
@@ -69,7 +69,7 @@ public class UserService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        users.save(user);
+        appUserRepo.save(user);
         log.info("created user userId={} role={}", user.getId(), user.getPlatformRole());
         return user;
     }
@@ -85,11 +85,11 @@ public class UserService {
      */
     @Transactional
     public AppUser update(UUID userId, String username, String status, String password) {
-        AppUser user = users.findById(userId).orElseThrow(() -> new NotFoundException("用户不存在"));
+        AppUser user = appUserRepo.findById(userId).orElseThrow(() -> new NotFoundException("用户不存在"));
         user.setNew(false);
         if (username != null && !username.isBlank()) {
             String next = username.trim();
-            users.findByUsername(next).ifPresent(existing -> {
+            appUserRepo.findByUsername(next).ifPresent(existing -> {
                 if (!existing.getId().equals(userId)) {
                     throw new ConflictException("用户名已存在");
                 }
@@ -106,7 +106,7 @@ public class UserService {
             user.setPasswordHash(passwordEncoder.encode(password));
         }
         user.setUpdatedAt(Instant.now());
-        users.save(user);
+        appUserRepo.save(user);
         log.info("updated user userId={} username={} status={}", userId, user.getUsername(), user.getStatus());
         return user;
     }

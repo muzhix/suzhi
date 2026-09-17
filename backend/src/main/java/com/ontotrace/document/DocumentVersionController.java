@@ -23,22 +23,22 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/document-versions")
 public class DocumentVersionController {
 
-    private final DocumentService documents;
-    private final DocumentVersionRepository versions;
-    private final TextUnitRepository textUnits;
+    private final DocumentService documentService;
+    private final DocumentVersionRepository documentVersionRepo;
+    private final TextUnitRepository textUnitRepo;
 
     /**
      * 创建控制器。
      *
-     * @param documents 文档服务
-     * @param versions 版本文仓
-     * @param textUnits 文本单元仓储
+     * @param documentService 文档服务
+     * @param documentVersionRepo 版本文仓
+     * @param textUnitRepo 文本单元仓储
      */
     public DocumentVersionController(
-            DocumentService documents, DocumentVersionRepository versions, TextUnitRepository textUnits) {
-        this.documents = documents;
-        this.versions = versions;
-        this.textUnits = textUnits;
+            DocumentService documentService, DocumentVersionRepository documentVersionRepo, TextUnitRepository textUnitRepo) {
+        this.documentService = documentService;
+        this.documentVersionRepo = documentVersionRepo;
+        this.textUnitRepo = textUnitRepo;
     }
 
     /**
@@ -64,7 +64,7 @@ public class DocumentVersionController {
     @GetMapping("/{versionId}/outline")
     public OutlineResponse outline(@AuthenticationPrincipal CurrentUser user, @PathVariable UUID versionId) {
         requireVersion(user, versionId);
-        List<OutlineTrees.OutlineNode> nodes = OutlineTrees.fromPaths(textUnits.findPathsByDocumentVersionId(versionId));
+        List<OutlineTrees.OutlineNode> nodes = OutlineTrees.fromPaths(textUnitRepo.findPathsByDocumentVersionId(versionId));
         int unitCount = nodes.stream().mapToInt(OutlineTrees.OutlineNode::unitCount).sum();
         return new OutlineResponse(nodes, unitCount);
     }
@@ -85,17 +85,17 @@ public class DocumentVersionController {
         requireVersion(user, versionId);
         List<TextUnit> rows;
         if (pathPrefix == null || pathPrefix.isBlank()) {
-            rows = textUnits.findByDocumentVersionIdOrderBySeqAsc(versionId);
+            rows = textUnitRepo.findByDocumentVersionIdOrderBySeqAsc(versionId);
         } else {
-            rows = textUnits.findByDocumentVersionIdAndPathPrefix(
+            rows = textUnitRepo.findByDocumentVersionIdAndPathPrefix(
                     versionId, pathPrefix, StructurePaths.likeLiteral(pathPrefix) + "/%");
         }
         return rows.stream().map(TextUnitResponse::from).toList();
     }
 
     private DocumentVersion requireVersion(CurrentUser user, UUID versionId) {
-        DocumentVersion version = versions.findById(versionId).orElseThrow(() -> new NotFoundException("文档版本不存在"));
-        documents.requireView(user, version.getDocumentId());
+        DocumentVersion version = documentVersionRepo.findById(versionId).orElseThrow(() -> new NotFoundException("文档版本不存在"));
+        documentService.requireView(user, version.getDocumentId());
         return version;
     }
 

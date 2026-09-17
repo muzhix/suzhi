@@ -21,22 +21,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class ExtractContentWriter {
 
-    private final DocumentVersionRepository versions;
-    private final TextUnitRepository textUnits;
-    private final JobRepository jobs;
+    private final DocumentVersionRepository documentVersionRepo;
+    private final TextUnitRepository textUnitRepo;
+    private final JobRepository jobRepo;
 
     /**
      * 创建写入器。
      *
-     * @param versions 版本文仓
-     * @param textUnits 文本单元仓储
-     * @param jobs 任务仓储
+     * @param documentVersionRepo 版本文仓
+     * @param textUnitRepo 文本单元仓储
+     * @param jobRepo 任务仓储
      */
     public ExtractContentWriter(
-            DocumentVersionRepository versions, TextUnitRepository textUnits, JobRepository jobs) {
-        this.versions = versions;
-        this.textUnits = textUnits;
-        this.jobs = jobs;
+            DocumentVersionRepository documentVersionRepo, TextUnitRepository textUnitRepo, JobRepository jobRepo) {
+        this.documentVersionRepo = documentVersionRepo;
+        this.textUnitRepo = textUnitRepo;
+        this.jobRepo = jobRepo;
     }
 
     /**
@@ -58,14 +58,14 @@ public class ExtractContentWriter {
             String contentFingerprint,
             String parserId,
             List<TextStructureParser.Unit> units) {
-        int nextNo = versions.findByDocumentIdOrderByVersionNoDesc(documentId).stream()
+        int nextNo = documentVersionRepo.findByDocumentIdOrderByVersionNoDesc(documentId).stream()
                 .mapToInt(DocumentVersion::getVersionNo)
                 .max()
                 .orElse(0)
                 + 1;
         UUID versionId = UUID.randomUUID();
         Instant now = Instant.now();
-        versions.save(DocumentVersion.builder()
+        documentVersionRepo.save(DocumentVersion.builder()
                 .id(versionId)
                 .documentId(documentId)
                 .assetId(assetId)
@@ -87,13 +87,13 @@ public class ExtractContentWriter {
                     .build());
             seq++;
         }
-        textUnits.saveAll(rows);
+        textUnitRepo.saveAll(rows);
         job.setDocumentVersionId(versionId);
         job.setProgress(rows.size());
         job.setTotal(rows.size());
         job.setStage("parsed");
         job.setUpdatedAt(now);
-        jobs.save(job);
+        jobRepo.save(job);
         return versionId;
     }
 }

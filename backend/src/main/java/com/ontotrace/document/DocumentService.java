@@ -20,18 +20,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class DocumentService {
 
-    private final DocumentRepository documents;
-    private final DocumentVersionRepository versions;
+    private final DocumentRepository documentRepo;
+    private final DocumentVersionRepository documentVersionRepo;
 
     /**
      * 创建服务。
      *
-     * @param documents 文档仓储
-     * @param versions 版本文仓
+     * @param documentRepo 文档仓储
+     * @param documentVersionRepo 版本文仓
      */
-    public DocumentService(DocumentRepository documents, DocumentVersionRepository versions) {
-        this.documents = documents;
-        this.versions = versions;
+    public DocumentService(DocumentRepository documentRepo, DocumentVersionRepository documentVersionRepo) {
+        this.documentRepo = documentRepo;
+        this.documentVersionRepo = documentVersionRepo;
     }
 
     /**
@@ -55,8 +55,8 @@ public class DocumentService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        documents.save(document);
-        documents.insertAcl(document.getId(), user.id(), "owner");
+        documentRepo.save(document);
+        documentRepo.insertAcl(document.getId(), user.id(), "owner");
         log.info("created document documentId={} userId={}", document.getId(), user.id());
         return document;
     }
@@ -78,7 +78,7 @@ public class DocumentService {
         document.setTitle(title);
         document.setAuthors(authors);
         document.setUpdatedAt(Instant.now());
-        documents.save(document);
+        documentRepo.save(document);
         log.info("updated document documentId={}", documentId);
         return document;
     }
@@ -95,7 +95,7 @@ public class DocumentService {
     public List<Document> list(CurrentUser user, String q, int page, int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
-        return documents.findAccessible(user.id(), LikeQuery.contains(q), safeSize, safePage * safeSize);
+        return documentRepo.findAccessible(user.id(), LikeQuery.contains(q), safeSize, safePage * safeSize);
     }
 
     /**
@@ -106,7 +106,7 @@ public class DocumentService {
      * @return 总数
      */
     public long count(CurrentUser user, String q) {
-        return documents.countAccessible(user.id(), LikeQuery.contains(q));
+        return documentRepo.countAccessible(user.id(), LikeQuery.contains(q));
     }
 
     /**
@@ -117,7 +117,7 @@ public class DocumentService {
      * @return 文档
      */
     public Document get(CurrentUser user, UUID documentId) {
-        return documents.findAccessible(documentId, user.id()).orElseThrow(() -> new NotFoundException("文档不存在或无权访问"));
+        return documentRepo.findAccessible(documentId, user.id()).orElseThrow(() -> new NotFoundException("文档不存在或无权访问"));
     }
 
     /**
@@ -127,7 +127,7 @@ public class DocumentService {
      * @return 版本标识，尚未提取时为空
      */
     public UUID latestVersionId(UUID documentId) {
-        return versions.findFirstByDocumentIdOrderByVersionNoDesc(documentId)
+        return documentVersionRepo.findFirstByDocumentIdOrderByVersionNoDesc(documentId)
                 .map(DocumentVersion::getId)
                 .orElse(null);
     }
@@ -139,7 +139,7 @@ public class DocumentService {
      * @param documentId 文档标识
      */
     public void requireView(CurrentUser user, UUID documentId) {
-        if (!documents.canView(documentId, user.id())) {
+        if (!documentRepo.canView(documentId, user.id())) {
             throw new AccessDeniedException("无权访问该文档");
         }
     }
@@ -151,7 +151,7 @@ public class DocumentService {
      * @param documentId 文档标识
      */
     public void requireEdit(CurrentUser user, UUID documentId) {
-        if (!documents.canEdit(documentId, user.id())) {
+        if (!documentRepo.canEdit(documentId, user.id())) {
             throw new AccessDeniedException("需要文档编辑权限");
         }
     }

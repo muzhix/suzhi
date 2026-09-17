@@ -45,38 +45,38 @@ public class JobService {
     /** 未终态集合：提交去重时认为仍在执行。 */
     private static final List<String> ACTIVE_STATUSES = List.of("pending", "running");
 
-    private final JobRepository jobs;
-    private final DocumentService documents;
-    private final DocumentVersionRepository versions;
-    private final TextUnitRepository textUnits;
-    private final DocumentStructureService structure;
+    private final JobRepository jobRepo;
+    private final DocumentService documentService;
+    private final DocumentVersionRepository documentVersionRepo;
+    private final TextUnitRepository textUnitRepo;
+    private final DocumentStructureService documentStructureService;
     private final OntoTraceProperties properties;
     private final Map<String, JobHandler> handlers;
 
     /**
      * 创建服务。
      *
-     * @param jobs 任务仓储
-     * @param documents 文档服务
-     * @param versions 版本文仓
-     * @param textUnits 文本单元仓储
-     * @param structure 结构方案
+     * @param jobRepo 任务仓储
+     * @param documentService 文档服务
+     * @param documentVersionRepo 版本文仓
+     * @param textUnitRepo 文本单元仓储
+     * @param documentStructureService 结构方案
      * @param properties 运行参数
      * @param handlers 任务处理器
      */
     public JobService(
-            JobRepository jobs,
-            DocumentService documents,
-            DocumentVersionRepository versions,
-            TextUnitRepository textUnits,
-            DocumentStructureService structure,
+            JobRepository jobRepo,
+            DocumentService documentService,
+            DocumentVersionRepository documentVersionRepo,
+            TextUnitRepository textUnitRepo,
+            DocumentStructureService documentStructureService,
             OntoTraceProperties properties,
             List<JobHandler> handlers) {
-        this.jobs = jobs;
-        this.documents = documents;
-        this.versions = versions;
-        this.textUnits = textUnits;
-        this.structure = structure;
+        this.jobRepo = jobRepo;
+        this.documentService = documentService;
+        this.documentVersionRepo = documentVersionRepo;
+        this.textUnitRepo = textUnitRepo;
+        this.documentStructureService = documentStructureService;
         this.properties = properties;
         this.handlers = handlers.stream().collect(Collectors.toMap(JobHandler::type, Function.identity()));
     }
@@ -93,15 +93,15 @@ public class JobService {
      */
     @Transactional
     public Job submitExtract(CurrentUser user, UUID documentId, String idempotencyKey, StructureSchemeRequest request) {
-        documents.requireEdit(user, documentId);
-        StructureProfile profile = structure.resolve(request);
+        documentService.requireEdit(user, documentId);
+        StructureProfile profile = documentStructureService.resolve(request);
         String fingerprint = profile == null ? "none" : profile.id() + ":" + Math.abs(StructureJson.write(profile).hashCode());
         if (hasClientKey(idempotencyKey)) {
             return reuseClientKey(idempotencyKey, user, documentId)
                     .orElseGet(() -> createExtract(user, documentId, idempotencyKey, profile));
         }
         String base = EXTRACT_CONTENT + ":" + documentId + ":" + fingerprint + ":";
-        return jobs.findFirstByIdempotencyKeyStartingWithAndStatusInOrderByCreatedAtDesc(base, ACTIVE_STATUSES)
+        return jobRepo.findFirstByIdempotencyKeyStartingWithAndStatusInOrderByCreatedAtDesc(base, ACTIVE_STATUSES)
                 .orElseGet(() -> createExtract(user, documentId, nextSequenceKey(base), profile));
     }
 
@@ -128,20 +128,20 @@ public class JobService {
         if ("disabled".equals(properties.getAi().getMode())) {
             throw new UnprocessableException("未配置模型。设置 AI_API_KEY 并将 ontotrace.ai.mode 设为 live，或本地使用 stub");
         }
-        DocumentVersion version = versions.findById(versionId).orElseThrow(() -> new NotFoundException("文档版本不存在"));
-        documents.requireEdit(user, version.getDocumentId());
+        DocumentVersion version = documentVersionRepo.findById(versionId).orElseThrow(() -> new NotFoundException("文档版本不存在"));
+        documentService.requireEdit(user, version.getDocumentId());
         String prefix = pathPrefix == null || pathPrefix.isBlank() ? null : pathPrefix;
         if (textUnitId != null && prefix != null) {
             throw new UnprocessableException("不能同时指定文本单元和 path 前缀");
         }
         if (textUnitId != null) {
-            TextUnit unit = textUnits.findById(textUnitId).orElseThrow(() -> new NotFoundException("文本单元不存在"));
+            TextUnit unit = textUnitRepo.findById(textUnitId).orElseThrow(() -> new NotFoundException("文本单元不存在"));
             if (!versionId.equals(unit.getDocumentVersionId())) {
                 throw new UnprocessableException("文本单元不属于该版本");
             }
         }
         if (prefix != null) {
-            List<TextUnit> scoped = textUnits.findByDocumentVersionIdAndPathPrefix(
+            List<TextUnit> scoped = textUnitRepo.findByDocumentVersionIdAndPathPrefix(
                     versionId, prefix, StructurePaths.likeLiteral(prefix) + "/%");
             if (scoped.isEmpty()) {
                 throw new UnprocessableException("该 path 下没有文本单元");
@@ -157,7 +157,7 @@ public class JobService {
         }
         String base = EXTRACT_EDU + ":" + versionId + ":" + properties.getAi().getGeneratePromptVersion() + ":"
                 + range + ":";
-        return jobs.findFirstByIdempotencyKeyStartingWithAndStatusInOrderByCreatedAtDesc(base, ACTIVE_STATUSES)
+        return jobRepo.findFirstByIdempotencyKeyStartingWithAndStatusInOrderByCreatedAtDesc(base, ACTIVE_STATUSES)
                 .orElseGet(() -> createEdu(
                         user, version.getDocumentId(), versionId, textUnitId, prefix, nextSequenceKey(base)));
     }
@@ -184,9 +184,9 @@ public class JobService {
      * @return 任务
      */
     public Job get(CurrentUser user, UUID jobId) {
-        Job job = jobs.findById(jobId).orElseThrow(() -> new NotFoundException("任务不存在"));
+        Job job = jobRepo.findById(jobId).orElseThrow(() -> new NotFoundException("任务不存在"));
         if (job.getDocumentId() != null) {
-            documents.requireView(user, job.getDocumentId());
+            documentService.requireView(user, job.getDocumentId());
         } else if (!job.getCreatedBy().equals(user.id()) && !user.admin()) {
             throw new AccessDeniedException("无权查看该任务");
         }
@@ -202,7 +202,7 @@ public class JobService {
     @Transactional
     public Job claim(String workerId) {
         Instant now = Instant.now();
-        Job job = jobs.lockNext(now, workerId).orElse(null);
+        Job job = jobRepo.lockNext(now, workerId).orElse(null);
         if (job == null) {
             return null;
         }
@@ -212,7 +212,7 @@ public class JobService {
         job.setLeaseUntil(now.plusSeconds(properties.getWorker().getLeaseSeconds()));
         job.setWorkerId(workerId);
         job.setUpdatedAt(now);
-        jobs.save(job);
+        jobRepo.save(job);
         log.info(
                 "claimed job jobId={} type={} workerId={} attempt={}",
                 job.getId(),
@@ -287,7 +287,7 @@ public class JobService {
         job.setWorkerId(null);
         job.setErrorSummary(errorSummary(ex));
         job.setUpdatedAt(Instant.now());
-        jobs.save(job);
+        jobRepo.save(job);
         log.info(
                 "job rescheduled jobId={} attempt={} backoffSeconds={} error={}",
                 job.getId(),
@@ -309,7 +309,7 @@ public class JobService {
         }
         Instant now = Instant.now();
         Instant leaseUntil = now.plusSeconds(properties.getWorker().getLeaseSeconds());
-        int updated = jobs.renewLeases(workerId, jobIds, leaseUntil, now);
+        int updated = jobRepo.renewLeases(workerId, jobIds, leaseUntil, now);
         if (updated > 0) {
             log.debug("renewed leases workerId={} count={}", workerId, updated);
         }
@@ -328,7 +328,7 @@ public class JobService {
      * @return 命中的任务
      */
     private Optional<Job> reuseClientKey(String key, CurrentUser user, UUID documentId) {
-        return jobs.findByIdempotencyKey(key).map(job -> {
+        return jobRepo.findByIdempotencyKey(key).map(job -> {
             if (!job.getCreatedBy().equals(user.id()) || !documentId.equals(job.getDocumentId())) {
                 throw new ConflictException("幂等键已被其他任务使用");
             }
@@ -343,13 +343,13 @@ public class JobService {
      * @return 新幂等键
      */
     private String nextSequenceKey(String base) {
-        return base + (jobs.countByIdempotencyKeyStartingWith(base) + 1);
+        return base + (jobRepo.countByIdempotencyKeyStartingWith(base) + 1);
     }
 
     private Job createExtract(CurrentUser user, UUID documentId, String key, StructureProfile profile) {
         Job job = create(EXTRACT_CONTENT, user, documentId, null, null, key);
         if (profile != null) {
-            jobs.setPayload(job.getId(), StructureJson.write(new ExtractJobPayload(profile.id(), profile)));
+            jobRepo.setPayload(job.getId(), StructureJson.write(new ExtractJobPayload(profile.id(), profile)));
         }
         return job;
     }
@@ -358,7 +358,7 @@ public class JobService {
             CurrentUser user, UUID documentId, UUID versionId, UUID textUnitId, String pathPrefix, String key) {
         Job job = create(EXTRACT_EDU, user, documentId, versionId, textUnitId, key);
         if (pathPrefix != null) {
-            jobs.setPayload(job.getId(), StructureJson.write(new EduPathPayload(pathPrefix)));
+            jobRepo.setPayload(job.getId(), StructureJson.write(new EduPathPayload(pathPrefix)));
         }
         return job;
     }
@@ -390,7 +390,7 @@ public class JobService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        jobs.save(job);
+        jobRepo.save(job);
         log.info("created job jobId={} type={}", job.getId(), type);
         return job;
     }
@@ -399,14 +399,14 @@ public class JobService {
         job.setStatus("succeeded");
         job.setStage("done");
         job.setUpdatedAt(Instant.now());
-        jobs.save(job);
+        jobRepo.save(job);
     }
 
     private void fail(Job job, String summary) {
         job.setStatus("failed");
         job.setErrorSummary(summary);
         job.setUpdatedAt(Instant.now());
-        jobs.save(job);
+        jobRepo.save(job);
     }
 
     /**

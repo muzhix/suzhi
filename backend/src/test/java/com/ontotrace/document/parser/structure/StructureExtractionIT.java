@@ -77,37 +77,37 @@ class StructureExtractionIT {
     S3AssetStore store;
 
     @Autowired
-    DocumentStructureService structure;
+    DocumentStructureService documentStructureService;
 
     @Autowired
-    DocumentService documents;
+    DocumentService documentService;
 
     @Autowired
-    DocumentVersionRepository versions;
+    DocumentVersionRepository documentVersionRepo;
 
     @Autowired
-    TextUnitRepository textUnits;
+    TextUnitRepository textUnitRepo;
 
     @Autowired
-    AssetRepository assets;
+    AssetRepository assetRepo;
 
     @Autowired
-    UploadSessionRepository sessions;
+    UploadSessionRepository uploadSessionRepo;
 
     @Autowired
     JobService jobService;
 
     @Autowired
-    JobRepository jobRepository;
+    JobRepository jobRepo;
 
     @Autowired
-    ProcessingRunRepository runs;
+    ProcessingRunRepository processingRunRepo;
 
     @Autowired
-    EduRepository edus;
+    EduRepository eduRepo;
 
     @Autowired
-    AppUserRepository users;
+    AppUserRepository appUserRepo;
 
     /**
      * 试解析不增加 document_version；确认提取后 path 为语义路径；前缀过滤只返回该节点。
@@ -115,25 +115,25 @@ class StructureExtractionIT {
     @Test
     void previewDoesNotWriteVersionAndConfirmUsesSemanticPath() {
         CurrentUser user = admin();
-        Document document = documents.create(user, "结构预览", null, null);
+        Document document = documentService.create(user, "结构预览", null, null);
         seedUpload(document.getId(), user.id(), readSlice("jizhuan-toc-divergent.txt"));
-        int before = versions.findByDocumentIdOrderByVersionNoDesc(document.getId()).size();
-        TextStructureParser.ParseResult preview = structure.preview(
+        int before = documentVersionRepo.findByDocumentIdOrderByVersionNoDesc(document.getId()).size();
+        TextStructureParser.ParseResult preview = documentStructureService.preview(
                 user, document.getId(), new StructureSchemeRequest("jizhuan-toc-divergent", null));
         assertTrue(preview.acceptable(), preview.summary());
-        assertEquals(before, versions.findByDocumentIdOrderByVersionNoDesc(document.getId()).size());
+        assertEquals(before, documentVersionRepo.findByDocumentIdOrderByVersionNoDesc(document.getId()).size());
 
         Job job = jobService.submitExtract(
                 user, document.getId(), null, new StructureSchemeRequest("jizhuan-toc-divergent", null));
         runToCompletion(job);
-        UUID versionId = jobRepository.findById(job.getId()).orElseThrow().getDocumentVersionId();
+        UUID versionId = jobRepo.findById(job.getId()).orElseThrow().getDocumentVersionId();
         assertNotNull(versionId);
-        List<TextUnit> units = textUnits.findByDocumentVersionIdOrderBySeqAsc(versionId);
+        List<TextUnit> units = textUnitRepo.findByDocumentVersionIdOrderBySeqAsc(versionId);
         assertFalse(units.isEmpty());
         assertTrue(units.stream().allMatch(unit -> unit.getPath().contains("/")));
         assertTrue(units.stream().noneMatch(unit -> unit.getPath().matches("p\\d+")));
 
-        List<TextUnit> prefix = textUnits.findByDocumentVersionIdAndPathPrefix(
+        List<TextUnit> prefix = textUnitRepo.findByDocumentVersionIdAndPathPrefix(
                 versionId, "本纪/卷一/高祖", StructurePaths.likeLiteral("本纪/卷一/高祖") + "/%");
         assertEquals(2, prefix.size());
         assertTrue(prefix.stream().allMatch(unit -> "本纪/卷一/高祖".equals(unit.getPath())));
@@ -145,12 +145,12 @@ class StructureExtractionIT {
     @Test
     void noSchemeKeepsBlankLinePn() {
         CurrentUser user = admin();
-        Document document = documents.create(user, "玄武门切片", null, null);
+        Document document = documentService.create(user, "玄武门切片", null, null);
         seedUpload(document.getId(), user.id(), "太宗伏兵玄武门。\n\n建成、元吉至临湖殿。".getBytes(StandardCharsets.UTF_8));
         Job job = jobService.submitExtract(user, document.getId(), null, null);
         runToCompletion(job);
-        UUID versionId = jobRepository.findById(job.getId()).orElseThrow().getDocumentVersionId();
-        List<TextUnit> units = textUnits.findByDocumentVersionIdOrderBySeqAsc(versionId);
+        UUID versionId = jobRepo.findById(job.getId()).orElseThrow().getDocumentVersionId();
+        List<TextUnit> units = textUnitRepo.findByDocumentVersionIdOrderBySeqAsc(versionId);
         assertEquals(List.of("p1", "p2"), units.stream().map(TextUnit::getPath).toList());
     }
 
@@ -160,12 +160,12 @@ class StructureExtractionIT {
     @Test
     void eduRejectsFullDocumentUnlessConfirmed() {
         CurrentUser user = admin();
-        Document document = documents.create(user, "EDU 范围", null, null);
+        Document document = documentService.create(user, "EDU 范围", null, null);
         seedUpload(document.getId(), user.id(), readSlice("biannian-juan-ji-nian.txt"));
         Job extract = jobService.submitExtract(
                 user, document.getId(), null, new StructureSchemeRequest("biannian-juan-ji-nian", null));
         runToCompletion(extract);
-        UUID versionId = jobRepository.findById(extract.getId()).orElseThrow().getDocumentVersionId();
+        UUID versionId = jobRepo.findById(extract.getId()).orElseThrow().getDocumentVersionId();
 
         assertThrows(
                 UnprocessableException.class,
@@ -173,17 +173,17 @@ class StructureExtractionIT {
 
         Job scoped = jobService.submitEdu(user, versionId, null, null, "卷第一/周纪一/威烈王二十三年", false);
         runToCompletion(scoped);
-        ProcessingRun run = runs.findFirstByJobIdOrderByCreatedAtDesc(scoped.getId()).orElseThrow();
+        ProcessingRun run = processingRunRepo.findFirstByJobIdOrderByCreatedAtDesc(scoped.getId()).orElseThrow();
         assertEquals("path:卷第一/周纪一/威烈王二十三年", run.getInputRange());
-        assertEquals(2, edus.findVisible(versionId).size());
+        assertEquals(2, eduRepo.findVisible(versionId).size());
 
         Job other = jobService.submitEdu(user, versionId, null, null, "卷第二/秦纪一/昭襄王五十二年", false);
         runToCompletion(other);
-        assertEquals(3, edus.findVisible(versionId).size());
+        assertEquals(3, eduRepo.findVisible(versionId).size());
     }
 
     private CurrentUser admin() {
-        AppUser user = users.findByUsername("admin").orElseThrow();
+        AppUser user = appUserRepo.findByUsername("admin").orElseThrow();
         return new CurrentUser(user.getId(), user.getUsername(), user.getDisplayName(), user.getPlatformRole());
     }
 
@@ -192,7 +192,7 @@ class StructureExtractionIT {
         assertNotNull(claimed);
         assertEquals(job.getId(), claimed.getId());
         jobService.execute(claimed);
-        assertEquals("succeeded", jobRepository.findById(job.getId()).orElseThrow().getStatus());
+        assertEquals("succeeded", jobRepo.findById(job.getId()).orElseThrow().getStatus());
     }
 
     private void seedUpload(UUID documentId, UUID userId, byte[] bytes) {
@@ -206,8 +206,8 @@ class StructureExtractionIT {
                 .checksumSha256(S3AssetStore.sha256(bytes))
                 .createdAt(Instant.now())
                 .build();
-        assets.save(asset);
-        sessions.save(UploadSession.builder()
+        assetRepo.save(asset);
+        uploadSessionRepo.save(UploadSession.builder()
                 .id(UUID.randomUUID())
                 .userId(userId)
                 .documentId(documentId)

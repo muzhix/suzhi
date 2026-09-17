@@ -17,15 +17,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class EduController {
 
-    private final EduService edus;
+    private final EduService eduService;
 
     /**
      * 创建控制器。
      *
-     * @param edus EDU 服务
+     * @param eduService EDU 服务
      */
-    public EduController(EduService edus) {
-        this.edus = edus;
+    public EduController(EduService eduService) {
+        this.eduService = eduService;
     }
 
     /**
@@ -37,7 +37,7 @@ public class EduController {
      */
     @GetMapping("/document-versions/{versionId}/edus")
     public List<EduResponse> list(@AuthenticationPrincipal CurrentUser user, @PathVariable java.util.UUID versionId) {
-        return edus.list(user, versionId).stream().map(EduResponse::from).toList();
+        return eduService.list(user, versionId).stream().map(EduResponse::from).toList();
     }
 
     /**

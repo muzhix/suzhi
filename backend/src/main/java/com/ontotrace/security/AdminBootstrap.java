@@ -18,20 +18,20 @@ import org.springframework.stereotype.Component;
 @Component
 public class AdminBootstrap implements ApplicationRunner {
 
-    private final AppUserRepository users;
+    private final AppUserRepository appUserRepo;
     private final PasswordEncoder passwordEncoder;
     private final OntoTraceProperties properties;
 
     /**
      * 创建引导器。
      *
-     * @param users 用户仓储
+     * @param appUserRepo 用户仓储
      * @param passwordEncoder 密码编码器
      * @param properties 运行参数
      */
     public AdminBootstrap(
-            AppUserRepository users, PasswordEncoder passwordEncoder, OntoTraceProperties properties) {
-        this.users = users;
+            AppUserRepository appUserRepo, PasswordEncoder passwordEncoder, OntoTraceProperties properties) {
+        this.appUserRepo = appUserRepo;
         this.passwordEncoder = passwordEncoder;
         this.properties = properties;
     }
@@ -43,7 +43,7 @@ public class AdminBootstrap implements ApplicationRunner {
      */
     @Override
     public void run(ApplicationArguments args) {
-        if (users.existsByPlatformRole("admin")) {
+        if (appUserRepo.existsByPlatformRole("admin")) {
             return;
         }
         Instant now = Instant.now();
@@ -57,7 +57,7 @@ public class AdminBootstrap implements ApplicationRunner {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        users.save(admin);
+        appUserRepo.save(admin);
         log.info("bootstrapped admin userId={}", admin.getId());
     }
 }

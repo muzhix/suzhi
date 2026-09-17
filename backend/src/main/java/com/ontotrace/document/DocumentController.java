@@ -25,15 +25,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/documents")
 public class DocumentController {
 
-    private final DocumentService documents;
+    private final DocumentService documentService;
 
     /**
      * 创建控制器。
      *
-     * @param documents 文档服务
+     * @param documentService 文档服务
      */
-    public DocumentController(DocumentService documents) {
-        this.documents = documents;
+    public DocumentController(DocumentService documentService) {
+        this.documentService = documentService;
     }
 
     /**
@@ -53,10 +53,10 @@ public class DocumentController {
             @RequestParam(defaultValue = "20") int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
-        List<DocumentResponse> items = documents.list(user, q, safePage, safeSize).stream()
-                .map(document -> DocumentResponse.from(document, documents.latestVersionId(document.getId())))
+        List<DocumentResponse> items = documentService.list(user, q, safePage, safeSize).stream()
+                .map(document -> DocumentResponse.from(document, documentService.latestVersionId(document.getId())))
                 .toList();
-        return new DocumentPageResponse(items, documents.count(user, q), safePage, safeSize);
+        return new DocumentPageResponse(items, documentService.count(user, q), safePage, safeSize);
     }
 
     /**
@@ -70,7 +70,7 @@ public class DocumentController {
     public DocumentResponse create(
             @AuthenticationPrincipal CurrentUser user, @Valid @RequestBody CreateDocumentRequest request) {
         return DocumentResponse.from(
-                documents.create(user, request.title(), request.authors(), request.materialType()), null);
+                documentService.create(user, request.title(), request.authors(), request.materialType()), null);
     }
 
     /**
@@ -82,8 +82,8 @@ public class DocumentController {
      */
     @GetMapping("/{documentId}")
     public DocumentResponse get(@AuthenticationPrincipal CurrentUser user, @PathVariable UUID documentId) {
-        Document document = documents.get(user, documentId);
-        return DocumentResponse.from(document, documents.latestVersionId(documentId));
+        Document document = documentService.get(user, documentId);
+        return DocumentResponse.from(document, documentService.latestVersionId(documentId));
     }
 
     /**
@@ -100,8 +100,8 @@ public class DocumentController {
             @PathVariable UUID documentId,
             @Valid @RequestBody UpdateDocumentRequest request) {
         return DocumentResponse.from(
-                documents.update(user, documentId, request.title(), request.authors()),
-                documents.latestVersionId(documentId));
+                documentService.update(user, documentId, request.title(), request.authors()),
+                documentService.latestVersionId(documentId));
     }
 
     /**

@@ -24,15 +24,15 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasRole('ADMIN')")
 public class UserController {
 
-    private final UserService users;
+    private final UserService userService;
 
     /**
      * 创建控制器。
      *
-     * @param users 用户服务
+     * @param userService 用户服务
      */
-    public UserController(UserService users) {
-        this.users = users;
+    public UserController(UserService userService) {
+        this.userService = userService;
     }
 
     /**
@@ -43,7 +43,7 @@ public class UserController {
      */
     @GetMapping
     public List<UserResponse> list(@RequestParam(defaultValue = "") String q) {
-        return users.list(q).stream().map(UserResponse::from).toList();
+        return userService.list(q).stream().map(UserResponse::from).toList();
     }
 
     /**
@@ -55,7 +55,7 @@ public class UserController {
     @PostMapping
     public UserResponse create(@Valid @RequestBody CreateUserRequest request) {
         return UserResponse.from(
-                users.create(request.username(), request.displayName(), request.password(), request.platformRole()));
+                userService.create(request.username(), request.displayName(), request.password(), request.platformRole()));
     }
 
     /**
@@ -67,7 +67,7 @@ public class UserController {
      */
     @PatchMapping("/{userId}")
     public UserResponse update(@PathVariable UUID userId, @RequestBody UpdateUserRequest request) {
-        return UserResponse.from(users.update(userId, request.username(), request.status(), request.password()));
+        return UserResponse.from(userService.update(userId, request.username(), request.status(), request.password()));
     }
 
     /**
