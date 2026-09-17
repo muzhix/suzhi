@@ -11,7 +11,7 @@
     {
       "id": "pian",
       "pattern": "^(本纪|本紀|世家|列传|列傳|表|书|書|志)(第[一二三四五六七八九十百千万零〇0-9]+)\\s*(.*)$",
-      "pathTemplate": ["$1", "{tocVolume}", "$3"],
+      "pathTemplate": ["{tocVolume} {tocKey} $3"],
       "tocKeyTemplate": "$1$2",
       "nodeType": "pian"
     }

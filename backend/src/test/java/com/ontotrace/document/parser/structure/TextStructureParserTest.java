@@ -21,16 +21,31 @@ class TextStructureParserTest {
     private final TextStructureParser parser = new TextStructureParser();
 
     /**
-     * 正文标题反查目录卷号；目录不进正文；篇下按段。
+     * 正文标题反查目录卷号，拼成一层 path「卷号 目录篇名 正文篇题」；目录与标题行不进正文。
      */
     @Test
     void divergentLooksUpVolumeFromToc() {
         StructureProfile profile = registry.require("jizhuan-toc-divergent");
         TextStructureParser.ParseResult result = parser.parse(read("jizhuan-toc-divergent.txt"), profile);
         assertTrue(result.acceptable(), result.summary());
-        assertEquals(List.of("本纪/卷一/高祖", "本纪/卷一/高祖", "本纪/卷二/太宗上", "本纪/卷二/太宗上", "列传/卷五十一/后妃上"), paths(result));
+        assertEquals(3, result.headingCount());
+        assertEquals(
+                List.of(
+                        "卷一 本纪第一 高祖",
+                        "卷一 本纪第一 高祖",
+                        "卷二 本纪第二 太宗上",
+                        "卷二 本纪第二 太宗上",
+                        "卷五十一 列传第一 后妃上"),
+                paths(result));
+        assertTrue(paths(result).stream().noneMatch(path -> path.contains("/")));
+        assertEquals(
+                List.of("卷一 本纪第一 高祖", "卷二 本纪第二 太宗上", "卷五十一 列传第一 后妃上"),
+                result.outline().stream().map(OutlineTrees.OutlineNode::path).toList());
+        assertTrue(result.outline().stream().allMatch(node -> node.children().isEmpty()));
         assertFalse(result.units().stream().anyMatch(unit -> unit.path().equals("目录") || unit.text().contains("卷一 本纪第一")));
-        assertEquals(2, count(result, "本纪/卷一/高祖"));
+        assertTrue(result.units().stream().noneMatch(unit -> unit.text().equals("本纪第一 高祖") || unit.text().equals("本纪第二 太宗上")
+                || unit.text().equals("列传第一 后妃上")));
+        assertEquals(2, count(result, "卷一 本纪第一 高祖"));
         assertTrue(result.unmatchedVolumes().isEmpty());
         assertEquals("纪传体·目录异形", profile.name());
         assertFalse(profile.name().contains("旧唐书"));
