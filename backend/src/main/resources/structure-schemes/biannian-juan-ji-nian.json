@@ -1,0 +1,47 @@
+{
+  "id": "biannian-juan-ji-nian",
+  "name": "编年体·卷纪年",
+  "toc": {
+    "present": false,
+    "usage": "ignore",
+    "dropLeadingCopy": false
+  },
+  "headings": [
+    {
+      "id": "juan",
+      "pattern": "^●?(卷(?:第)?[一二三四五六七八九十百千万零〇0-9]+[上下中]?)$",
+      "level": 1,
+      "label": "$1",
+      "nodeType": "juan"
+    },
+    {
+      "id": "ji",
+      "pattern": "^【([^】]*纪[^】]*)】.*$",
+      "level": 2,
+      "label": "$1",
+      "nodeType": "ji"
+    },
+    {
+      "id": "nian",
+      "pattern": "^([\\u4e00-\\u9fff]{0,8}?)(元年|[一二三四五六七八九十百]+年)$",
+      "level": 3,
+      "label": "$0",
+      "nodeType": "nian"
+    },
+    {
+      "id": "wang",
+      "pattern": "^[\\u4e00-\\u9fff]{1,6}王$",
+      "level": 3,
+      "label": "$0",
+      "nodeType": "nian",
+      "mergeNextYear": true
+    }
+  ],
+  "alignment": "title_has_volume",
+  "paragraph": "blank_or_indent",
+  "neighbor": {
+    "noCrossJuan": true,
+    "noCrossNian": true
+  },
+  "skipEduNodeTypes": ["toc", "table", "appendix", "front"]
+}

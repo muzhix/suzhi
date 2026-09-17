@@ -4,6 +4,9 @@ import com.ontotrace.config.OntoTraceProperties;
 import com.ontotrace.document.TextUnit;
 import com.ontotrace.document.TextUnitRepository;
 import com.ontotrace.document.asset.S3AssetStore;
+import com.ontotrace.document.parser.structure.StructureJson;
+import com.ontotrace.document.parser.structure.StructurePaths;
+import com.ontotrace.runcontrol.JobService.EduPathPayload;
 import com.ontotrace.semantic.Edu;
 import com.ontotrace.semantic.EduArgument;
 import com.ontotrace.semantic.EduSourceRef;
@@ -96,9 +99,16 @@ public class ExtractEduJobHandler implements JobHandler {
         UUID versionId = job.getDocumentVersionId();
         List<TextUnit> units = textUnits.findByDocumentVersionIdOrderBySeqAsc(versionId);
         UUID targetId = job.getTargetTextUnitId();
-        writer.deleteExisting(versionId, targetId);
-        ProcessingRun run = startRun(job, versionId, targetId);
-        List<Integer> indexes = targetIndexes(units, targetId);
+        String pathPrefix = loadPathPrefix(job);
+        List<UUID> prefixUnitIds = pathPrefix == null
+                ? null
+                : units.stream()
+                        .filter(unit -> StructurePaths.underPrefix(unit.getPath(), pathPrefix))
+                        .map(TextUnit::getId)
+                        .toList();
+        writer.deleteExisting(versionId, targetId, prefixUnitIds);
+        ProcessingRun run = startRun(job, versionId, targetId, pathPrefix);
+        List<Integer> indexes = targetIndexes(units, targetId, pathPrefix);
         job.setNew(false);
         job.setTotal(indexes.size());
         job.setStage("generating");
@@ -138,10 +148,11 @@ public class ExtractEduJobHandler implements JobHandler {
             throw ex;
         }
         log.info(
-                "extracted edu jobId={} versionId={} targetTextUnitId={} units={} dropped={} reviewEnabled={} tokenIn={} tokenOut={}",
+                "extracted edu jobId={} versionId={} targetTextUnitId={} pathPrefix={} units={} dropped={} reviewEnabled={} tokenIn={} tokenOut={}",
                 job.getId(),
                 versionId,
                 targetId,
+                pathPrefix,
                 indexes.size(),
                 stats.dropped,
                 properties.getAi().isReviewEnabled(),
@@ -149,14 +160,15 @@ public class ExtractEduJobHandler implements JobHandler {
                 stats.tokenOutput);
     }
 
-    private ProcessingRun startRun(Job job, UUID versionId, UUID targetId) {
+    private ProcessingRun startRun(Job job, UUID versionId, UUID targetId, String pathPrefix) {
         OntoTraceProperties.Ai ai = properties.getAi();
         boolean reviewEnabled = ai.isReviewEnabled();
+        String inputRange = targetId != null ? targetId.toString() : pathPrefix != null ? "path:" + pathPrefix : "all";
         ProcessingRun run = ProcessingRun.builder()
                 .id(UUID.randomUUID())
                 .jobId(job.getId())
                 .inputDocumentVersionId(versionId)
-                .inputRange(targetId == null ? "all" : targetId.toString())
+                .inputRange(inputRange)
                 .contextStrategy("neighbor-1+target")
                 .provider(ai.getProvider())
                 .modelId(ai.getChatModel())
@@ -212,20 +224,39 @@ public class ExtractEduJobHandler implements JobHandler {
         log.info("edu dropped attachment runId={} key={} count={}", run.getId(), key, dropped.size());
     }
 
-    private static List<Integer> targetIndexes(List<TextUnit> units, UUID textUnitId) {
-        if (textUnitId == null) {
-            java.util.ArrayList<Integer> indexes = new java.util.ArrayList<>();
+    private String loadPathPrefix(Job job) {
+        String json = jobs.findPayload(job.getId()).orElse(null);
+        if (json == null || json.isBlank() || "null".equals(json)) {
+            return null;
+        }
+        EduPathPayload payload = StructureJson.read(json, EduPathPayload.class);
+        if (payload == null || payload.pathPrefix() == null || payload.pathPrefix().isBlank()) {
+            return null;
+        }
+        return payload.pathPrefix();
+    }
+
+    private static List<Integer> targetIndexes(List<TextUnit> units, UUID textUnitId, String pathPrefix) {
+        if (textUnitId != null) {
             for (int i = 0; i < units.size(); i++) {
-                indexes.add(i);
+                if (textUnitId.equals(units.get(i).getId())) {
+                    return List.of(i);
+                }
             }
-            return indexes;
+            throw new IllegalStateException("任务指定的文本单元不在该版本中");
         }
+        java.util.ArrayList<Integer> indexes = new java.util.ArrayList<>();
         for (int i = 0; i < units.size(); i++) {
-            if (textUnitId.equals(units.get(i).getId())) {
-                return List.of(i);
+            TextUnit unit = units.get(i);
+            if (pathPrefix != null && !StructurePaths.underPrefix(unit.getPath(), pathPrefix)) {
+                continue;
             }
+            if (StructurePaths.skipEdu(unit.getPath())) {
+                continue;
+            }
+            indexes.add(i);
         }
-        throw new IllegalStateException("任务指定的文本单元不在该版本中");
+        return indexes;
     }
 
     /**

@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.data.jdbc.repository.query.Modifying;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 任务仓储。领取到期任务使用 {@code FOR UPDATE SKIP LOCKED}。
@@ -86,4 +87,24 @@ public interface JobRepository extends ListCrudRepository<Job, UUID> {
               AND id IN (:jobIds)
             """)
     int renewLeases(String workerId, Collection<UUID> jobIds, Instant leaseUntil, Instant now);
+
+    /**
+     * 写入任务负载（结构方案快照、EDU path 前缀等）。
+     *
+     * @param id 任务标识
+     * @param json JSON 文本
+     */
+    @Transactional
+    @Modifying
+    @Query("UPDATE job SET payload = CAST(:json AS jsonb) WHERE id = :id")
+    void setPayload(UUID id, String json);
+
+    /**
+     * 读取任务负载。
+     *
+     * @param id 任务标识
+     * @return JSON 文本
+     */
+    @Query("SELECT CAST(payload AS TEXT) FROM job WHERE id = :id")
+    Optional<String> findPayload(UUID id);
 }

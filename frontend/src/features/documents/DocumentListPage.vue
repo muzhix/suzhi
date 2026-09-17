@@ -22,8 +22,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import DocumentJobBadge from './DocumentJobBadge.vue'
+import ExtractContentDialog from './ExtractContentDialog.vue'
+import ExtractEduDialog from './ExtractEduDialog.vue'
 import { toast } from 'vue-sonner'
-import { startJob } from './jobs'
 import { uploadDocumentFile } from './uploadFile'
 
 interface DocumentItem {
@@ -64,6 +65,8 @@ const createError = ref('')
 const createSaving = ref(false)
 const createFileInput = ref<HTMLInputElement | null>(null)
 const createDragging = ref(false)
+const extractDoc = ref<DocumentItem | null>(null)
+const eduDoc = ref<DocumentItem | null>(null)
 
 const list = useQuery({
   queryKey: computed(() => ['documents', page.value, size, q.value]),
@@ -222,30 +225,14 @@ function openFilePicker(documentId: string) {
 }
 
 async function extractContent(doc: DocumentItem) {
-  rowBusy[doc.id] = true
-  try {
-    const job = await startJob(`/api/documents/${doc.id}/extraction-jobs`)
-    rowError[doc.id] = ''
-    rowJobs[doc.id] = job.jobId
-  } catch (err) {
-    rowError[doc.id] = err instanceof ApiError ? err.message : '提取失败'
-    rowBusy[doc.id] = false
-  }
+  extractDoc.value = doc
 }
 
 async function extractEdu(doc: DocumentItem) {
   if (!doc.latestVersionId) {
     return
   }
-  rowBusy[doc.id] = true
-  try {
-    const job = await startJob(`/api/document-versions/${doc.latestVersionId}/edu-jobs`)
-    rowError[doc.id] = ''
-    rowJobs[doc.id] = job.jobId
-  } catch (err) {
-    rowError[doc.id] = err instanceof ApiError ? err.message : '抽取失败'
-    rowBusy[doc.id] = false
-  }
+  eduDoc.value = doc
 }
 
 async function onJobDone(documentId: string) {
@@ -282,7 +269,16 @@ async function onJobDone(documentId: string) {
           <TableEmpty v-if="list.data.value?.items.length === 0" :colspan="6">还没有文档</TableEmpty>
           <TableRow v-for="doc in list.data.value?.items ?? []" :key="doc.id">
             <TableCell>
-              <RouterLink :to="`/documents/${doc.id}`" class="hover:underline">{{ doc.title }}</RouterLink>
+              <RouterLink
+                :to="
+                  doc.latestVersionId
+                    ? `/documents/${doc.id}/versions/${doc.latestVersionId}/read`
+                    : `/documents/${doc.id}`
+                "
+                class="hover:underline"
+              >
+                {{ doc.title }}
+              </RouterLink>
             </TableCell>
             <TableCell>{{ doc.authors || '—' }}</TableCell>
             <TableCell class="whitespace-nowrap">{{ formatTime(doc.updatedAt) }}</TableCell>
@@ -468,5 +464,49 @@ async function onJobDone(documentId: string) {
         </form>
       </DialogContent>
     </Dialog>
+    <ExtractContentDialog
+      :open="Boolean(extractDoc)"
+      :document-id="extractDoc?.id ?? ''"
+      @update:open="(open) => { if (!open) extractDoc = null }"
+      @started="
+        (jobId) => {
+          if (extractDoc) {
+            rowError[extractDoc.id] = ''
+            rowJobs[extractDoc.id] = jobId
+            rowBusy[extractDoc.id] = true
+          }
+        }
+      "
+      @error="
+        (message) => {
+          if (extractDoc) {
+            rowError[extractDoc.id] = message
+            rowBusy[extractDoc.id] = false
+          }
+        }
+      "
+    />
+    <ExtractEduDialog
+      :open="Boolean(eduDoc?.latestVersionId)"
+      :version-id="eduDoc?.latestVersionId ?? ''"
+      @update:open="(open) => { if (!open) eduDoc = null }"
+      @started="
+        (jobId) => {
+          if (eduDoc) {
+            rowError[eduDoc.id] = ''
+            rowJobs[eduDoc.id] = jobId
+            rowBusy[eduDoc.id] = true
+          }
+        }
+      "
+      @error="
+        (message) => {
+          if (eduDoc) {
+            rowError[eduDoc.id] = message
+            rowBusy[eduDoc.id] = false
+          }
+        }
+      "
+    />
   </AppLayout>
 </template>
