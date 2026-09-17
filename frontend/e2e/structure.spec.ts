@@ -42,9 +42,15 @@ test('upload full book, preview scheme, and read a node', async ({ page, request
 
   await expect(page.getByRole('link', { name: title })).toBeVisible()
   await page.getByRole('button', { name: '提取内容' }).first().click()
-  await page.locator('#scheme').selectOption(book!.scheme)
-  await page.getByRole('button', { name: '预览目录' }).click()
+  const schemeNames: Record<string, string> = {
+    'biannian-juan-ji-nian': '编年体·卷纪年',
+    'jizhuan-toc-divergent': '纪传体·目录异形',
+    'jizhuan-toc-same': '纪传体·目录同形',
+  }
+  await page.getByLabel('结构方案').click()
+  await page.getByRole('option', { name: schemeNames[book!.scheme] }).click()
   await expect(page.getByText('可以确认')).toBeVisible({ timeout: 180_000 })
+  await expect(page.getByRole('tree')).toBeVisible()
   await page.getByRole('button', { name: '确认提取' }).click()
   await expect(page.getByLabel(/已完成/)).toBeVisible({ timeout: 180_000 })
 

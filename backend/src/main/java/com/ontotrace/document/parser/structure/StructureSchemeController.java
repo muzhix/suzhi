@@ -81,6 +81,7 @@ public class StructureSchemeController {
      * @param unmatchedVolumes 未对照卷
      * @param warnings 诊断
      * @param outline 目录树
+     * @param units 各段 path 与正文，供预览右栏
      */
     public record PreviewResponse(
             boolean acceptable,
@@ -90,8 +91,10 @@ public class StructureSchemeController {
             List<String> unmatchedHeadings,
             List<String> unmatchedVolumes,
             List<String> warnings,
-            List<OutlineTrees.OutlineNode> outline) {
+            List<OutlineTrees.OutlineNode> outline,
+            List<TextStructureParser.Unit> units) {
         static PreviewResponse from(TextStructureParser.ParseResult result) {
+            // ponytail: 预览一次下发全书段落，超大 txt 会撑 JSON；要按 path 懒加载再拆接口。
             return new PreviewResponse(
                     result.acceptable(),
                     result.units().size(),
@@ -100,7 +103,8 @@ public class StructureSchemeController {
                     result.unmatchedHeadings(),
                     result.unmatchedVolumes(),
                     result.warnings(),
-                    result.outline());
+                    result.outline(),
+                    result.units());
         }
     }
 }

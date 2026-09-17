@@ -43,6 +43,11 @@ export interface StructureScheme {
   profile: StructureProfile
 }
 
+export interface PreviewUnit {
+  path: string
+  text: string
+}
+
 export interface PreviewResponse {
   acceptable: boolean
   unitCount: number
@@ -52,6 +57,43 @@ export interface PreviewResponse {
   unmatchedVolumes: string[]
   warnings: string[]
   outline: OutlineNode[]
+  units: PreviewUnit[]
+}
+
+/** Select 不能用空字符串当选项值，用这个表示不选方案。 */
+export const NONE_STRUCTURE_SCHEME = 'none'
+
+/**
+ * 把结构方案 Select 的值收成真正的 schemeId。
+ *
+ * @param value Select 选中值
+ */
+export function schemeIdFromSelect(value: unknown): string {
+  const id = typeof value === 'string' ? value : ''
+  return !id || id === NONE_STRUCTURE_SCHEME ? '' : id
+}
+
+/**
+ * 有方案时必须先拿到可接受的预览才能确认；无方案走 B0 空行切段。
+ *
+ * @param schemeId 结构方案
+ * @param preview 最近一次预览
+ */
+export function canConfirmExtract(schemeId: string, preview: Pick<PreviewResponse, 'acceptable'> | null): boolean {
+  return !schemeId || Boolean(preview?.acceptable)
+}
+
+/**
+ * 当前节点及其子孙的段落。
+ *
+ * @param units 预览段落
+ * @param path 选中 path
+ */
+export function unitsForPath(units: PreviewUnit[], path: string): PreviewUnit[] {
+  if (!path) {
+    return []
+  }
+  return units.filter((unit) => unit.path === path || unit.path.startsWith(`${path}/`))
 }
 
 export interface TextUnit {
