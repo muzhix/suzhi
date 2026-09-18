@@ -7,23 +7,78 @@ export const ZEN_SIZE_DEFAULT = 16
 /** 三档快捷：小 / 中 / 大。 */
 export const ZEN_SIZE_PRESETS = { small: 14, medium: 16, large: 20 } as const
 
-const NOTO_CSS_ID = 'noto-serif-cjk-font-css'
+const ME_KEY = 'ontotrace.me'
+
 /** ZeoSeven 思源宋体（Noto Serif CJK SC）unicode-range 分包 CSS。 */
 export const NOTO_SERIF_CJK_CSS = 'https://fontsapi.zeoseven.com/285/main/result.css'
+/** ZeoSeven 霞鹜文楷等宽（OFL）unicode-range 分包 CSS。 */
+export const LXGW_WENKAI_MONO_CSS = 'https://fontsapi.zeoseven.com/293/main/result.css'
 
-/**
- * 把 query `wide` 收成全宽开关。仅 `1` 为开，缺省或其它值都是窄栏。
- *
- * @param raw 路由 query
- */
-export function parseZenWide(raw: unknown): boolean {
-  return raw === '1'
+/** 正文字体。宋 / 楷走开源 webfont，黑体用系统无衬线，不拉商业字体。 */
+export const ZEN_FONT_OPTIONS = [
+  {
+    id: 'noto',
+    label: '思源宋体',
+    stack: '"Noto Serif CJK", "Songti SC", "STSong", "SimSun", serif',
+    cssId: 'noto-serif-cjk-font-css',
+    href: NOTO_SERIF_CJK_CSS,
+  },
+  {
+    id: 'kai',
+    label: '霞鹜文楷',
+    stack: '"LXGW WenKai Mono", "Kaiti SC", "STKaiti", "KaiTi", serif',
+    cssId: 'lxgw-wenkai-mono-font-css',
+    href: LXGW_WENKAI_MONO_CSS,
+  },
+  {
+    id: 'hei',
+    label: '黑体',
+    stack:
+      '"PingFang SC", "Hiragino Sans GB", "Heiti SC", "SimHei", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif',
+    cssId: '',
+    href: '',
+  },
+] as const
+
+export type ZenFontId = (typeof ZEN_FONT_OPTIONS)[number]['id']
+
+/** 背景模式。正常沿用羊皮纸；护眼 / 夜间参考读通鉴色值。 */
+export const ZEN_THEME_OPTIONS = [
+  { id: 'normal', label: '正常', bg: '#f6f1e7', fg: '#222', muted: '#555' },
+  { id: 'eye', label: '护眼', bg: '#f6ffe8', fg: '#222', muted: '#4a5a3c' },
+  { id: 'night', label: '夜间', bg: '#10141b', fg: '#e8e6e1', muted: '#9aa3ad' },
+] as const
+
+export type ZenThemeId = (typeof ZEN_THEME_OPTIONS)[number]['id']
+
+/** 登录用户的纯净阅读偏好。 */
+export interface ZenPrefs {
+  size: number
+  wide: boolean
+  font: ZenFontId
+  theme: ZenThemeId
+}
+
+export const ZEN_PREFS_DEFAULT: ZenPrefs = {
+  size: ZEN_SIZE_DEFAULT,
+  wide: false,
+  font: 'noto',
+  theme: 'normal',
 }
 
 /**
- * 把 query `size` 收成滑杆整数。缺省或非法回落到 16，并钳到 14–40。
+ * 把 query / 存储里的 `wide` 收成布尔。仅 `1` 或 `true` 为开。
  *
- * @param raw 路由 query
+ * @param raw 原始值
+ */
+export function parseZenWide(raw: unknown): boolean {
+  return raw === true || raw === '1'
+}
+
+/**
+ * 把字号收成滑杆整数。缺省或非法回落到 16，并钳到 14–40。
+ *
+ * @param raw 原始值
  */
 export function parseZenSize(raw: unknown): number {
   const n =
@@ -39,6 +94,24 @@ export function parseZenSize(raw: unknown): number {
 }
 
 /**
+ * 正文字体。非法回落到思源宋体。
+ *
+ * @param raw 原始值
+ */
+export function parseZenFont(raw: unknown): ZenFontId {
+  return raw === 'kai' || raw === 'hei' ? raw : 'noto'
+}
+
+/**
+ * 背景模式。非法回落到正常。
+ *
+ * @param raw 原始值
+ */
+export function parseZenTheme(raw: unknown): ZenThemeId {
+  return raw === 'eye' || raw === 'night' ? raw : 'normal'
+}
+
+/**
  * 文言正文字号：滑杆基准 + 2（dtj 的 large）。
  *
  * @param base 滑杆值
@@ -48,7 +121,82 @@ export function zenBodyFontSize(base: number): number {
 }
 
 /**
- * 纯净阅读路由。入口不写 size，进页后再把字号落到 query。
+ * 当前登录用户 id。没有会话则空串，调用方不得拿它当匿名存储键。
+ */
+export function readSessionUserId(): string {
+  if (typeof sessionStorage === 'undefined') {
+    return ''
+  }
+  try {
+    const raw = sessionStorage.getItem(ME_KEY)
+    if (!raw) {
+      return ''
+    }
+    const me = JSON.parse(raw) as { id?: unknown }
+    return typeof me.id === 'string' && me.id ? me.id : ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * 按用户隔离的 localStorage 键。不要对空 userId 调用写入。
+ *
+ * @param userId 登录用户
+ */
+export function zenPrefsStorageKey(userId: string): string {
+  return `ontotrace.zenPrefs.${userId}`
+}
+
+/**
+ * 读该用户的阅读偏好。无记录或损坏时回默认。
+ *
+ * @param userId 登录用户
+ */
+export function loadZenPrefs(userId: string): ZenPrefs {
+  if (!userId || typeof localStorage === 'undefined') {
+    return { ...ZEN_PREFS_DEFAULT }
+  }
+  try {
+    const raw = localStorage.getItem(zenPrefsStorageKey(userId))
+    if (!raw) {
+      return { ...ZEN_PREFS_DEFAULT }
+    }
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    return {
+      size: parseZenSize(parsed.size),
+      wide: parseZenWide(parsed.wide),
+      font: parseZenFont(parsed.font),
+      theme: parseZenTheme(parsed.theme),
+    }
+  } catch {
+    return { ...ZEN_PREFS_DEFAULT }
+  }
+}
+
+/**
+ * 写入该用户的阅读偏好。没有 userId 时不写，避免匿名键冒充多用户。
+ *
+ * @param userId 登录用户
+ * @param prefs 偏好
+ */
+export function saveZenPrefs(userId: string, prefs: ZenPrefs): void {
+  if (!userId || typeof localStorage === 'undefined') {
+    return
+  }
+  localStorage.setItem(
+    zenPrefsStorageKey(userId),
+    JSON.stringify({
+      size: parseZenSize(prefs.size),
+      wide: Boolean(prefs.wide),
+      font: parseZenFont(prefs.font),
+      theme: parseZenTheme(prefs.theme),
+    }),
+  )
+}
+
+/**
+ * 纯净阅读路由。入口只带 path，阅读配置走用户偏好，不写进 query。
  *
  * @param documentId 文档
  * @param versionId 版本
@@ -62,19 +210,32 @@ export function zenReadingLocation(documentId: string, versionId: string, path?:
 }
 
 /**
- * 按需注入思源宋体 webfont。已存在则跳过。
+ * 按需注入正文字体 webfont。已存在或黑体则跳过。
+ *
+ * @param font 字体
  */
-export function ensureNotoSerifCjk(): void {
+export function ensureZenFont(font: ZenFontId): void {
   if (typeof document === 'undefined') {
     return
   }
-  if (document.getElementById(NOTO_CSS_ID)) {
+  const option = ZEN_FONT_OPTIONS.find((item) => item.id === font)
+  if (!option?.cssId || !option.href) {
+    return
+  }
+  if (document.getElementById(option.cssId)) {
     return
   }
   const link = document.createElement('link')
-  link.id = NOTO_CSS_ID
+  link.id = option.cssId
   link.rel = 'stylesheet'
-  link.href = NOTO_SERIF_CJK_CSS
+  link.href = option.href
   link.crossOrigin = 'anonymous'
   document.head.appendChild(link)
+}
+
+/**
+ * 按需注入思源宋体。已存在则跳过。
+ */
+export function ensureNotoSerifCjk(): void {
+  ensureZenFont('noto')
 }
