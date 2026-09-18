@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,15 +91,22 @@ class TextStructureParserFullBookTest {
             if (result.units().stream().anyMatch(unit -> unit.path().equals(unit.text()))) {
                 throw new AssertionError(schemeId + " 卷标题进了 unit");
             }
-            long maxPerPath = result.units().stream()
-                    .collect(Collectors.groupingBy(TextStructureParser.Unit::path, Collectors.counting()))
-                    .values()
-                    .stream()
-                    .mapToLong(Long::longValue)
-                    .max()
-                    .orElse(0);
-            if (maxPerPath <= 1) {
-                throw new AssertionError(schemeId + " 整卷合成一段 " + result.summary());
+            long juan1 = result.units().stream()
+                    .filter(unit -> "卷一 五帝本纪第一".equals(unit.path()))
+                    .count();
+            if (juan1 <= 1) {
+                throw new AssertionError(schemeId + " 卷一整卷合成一段 " + result.summary());
+            }
+            List<String> texts = result.units().stream().map(TextStructureParser.Unit::text).toList();
+            String chiYou = "蚩尤作乱，不用帝命。於是黄帝乃徵师诸侯，与蚩尤战於涿鹿之野，遂禽杀蚩尤。";
+            String zunXuanYuan = "而诸侯咸尊轩辕为天子，代神农氏，是为黄帝。天下有不顺者，黄帝从而征之，平者去之，披山通道，未尝宁居。";
+            int chiYouAt = texts.indexOf(chiYou);
+            if (chiYouAt >= 0 && (chiYouAt + 1 >= texts.size() || !zunXuanYuan.equals(texts.get(chiYouAt + 1)))) {
+                throw new AssertionError(schemeId + " 蚩尤作乱未与下一行分成两段");
+            }
+            if (result.units().stream()
+                    .anyMatch(unit -> unit.text().contains("蚩尤作乱") && unit.text().contains("而诸侯咸尊轩辕"))) {
+                throw new AssertionError(schemeId + " 相邻正文行粘成一段");
             }
             if (result.outline().stream().anyMatch(node -> !node.children().isEmpty())) {
                 throw new AssertionError(schemeId + " 目录同形不应拆成两级");
