@@ -70,7 +70,7 @@ public record StructureProfile(
      * @param pattern 整行正则
      * @param level 栈深度，有 pathTemplate 时忽略
      * @param label 节点标签模板，如 {@code $1}
-     * @param pathTemplate 由本行一次生成整条 path 的模板；空则按 level 压栈。多项用 {@code /} 连接；目录异形用一项拼成一层字符串
+     * @param pathTemplate 由本行一次生成整条 path 的模板；空则按 level 压栈。多项用 {@code /} 连接；目录异形、目录同形用一项拼成一层字符串
      * @param tocKeyTemplate 反查目录用的键，如 {@code $1$2}；填入模板的 {@code {tocKey}}
      * @param nodeType 节点类型，如 pian、table、nian
      * @param mergeNextYear 王名行并入随后的元年标题
