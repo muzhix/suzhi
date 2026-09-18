@@ -227,7 +227,7 @@ class TextStructureParserTest {
     }
 
     /**
-     * 无总目也能建卷→纪→年；点年仍是多段；王名并入元年。
+     * 无总目也能建卷→纪→年；点年仍是多段；王名并入元年。开篇书名不进「文前」。
      */
     @Test
     void biannianBuildsJuanJiNianWithMultipleUnitsPerYear() {
@@ -240,6 +240,9 @@ class TextStructureParserTest {
         assertEquals(1, count(result, "卷第一/周纪一/安王元年"));
         assertEquals(1, count(result, "卷第二/秦纪一/昭襄王五十二年"));
         assertTrue(result.units().stream().noneMatch(unit -> "卷第一/周纪一/威烈王二十三年".equals(unit.path()) && unit.text().contains("初命") && unit.text().contains("臣光曰")));
+        assertEquals("卷第一", result.outline().getFirst().path());
+        assertTrue(result.outline().stream().noneMatch(node -> "文前".equals(node.path())));
+        assertTrue(result.units().stream().noneMatch(unit -> "文前".equals(unit.path()) || "资治通鉴".equals(unit.text())));
         assertFalse(profile.name().contains("通鉴"));
         assertFalse(profile.name().contains("资治通鉴"));
     }
