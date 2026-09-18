@@ -484,17 +484,46 @@ public class TextStructureParser {
         return label;
     }
 
+    private static final String GANZHI_STEMS = "甲乙丙丁戊己庚辛壬癸";
+    private static final String GANZHI_BRANCHES = "子丑寅卯辰巳午未申酉戌亥";
+
     /**
-     * 干支地支「巳」常被写成「已」。只替换这一个错字，不改天干「己」。
+     * 干支按位置纠正形近错字：地支「巳/未/戌」常写成「已/末/戊」，天干「戊」常写成「戌」。
+     * 底本另有两条定向纠正：{@code 丙年}→{@code 丙午}、{@code 壬庚}→{@code 壬辰}，不按公元反推。
+     * 纠正后仍不是天干加地支则返回 null，不挡住年号识别。不改天干「己」。
      *
      * @param raw 干支，可空
-     * @return 规范化干支；空白则为 null
+     * @return 规范化干支；无法纠正则为 null
      */
     static String normalizeGanzhi(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
         }
-        return raw.replace('已', '巳');
+        String token = raw.strip();
+        if (token.length() != 2) {
+            return null;
+        }
+        String exact =
+                switch (token) {
+                    case "丙年" -> "丙午";
+                    case "壬庚" -> "壬辰";
+                    default -> null;
+                };
+        if (exact != null) {
+            return exact;
+        }
+        char stem = token.charAt(0) == '戌' ? '戊' : token.charAt(0);
+        char branch =
+                switch (token.charAt(1)) {
+                    case '已' -> '巳';
+                    case '末' -> '未';
+                    case '戊' -> '戌';
+                    default -> token.charAt(1);
+                };
+        if (GANZHI_STEMS.indexOf(stem) >= 0 && GANZHI_BRANCHES.indexOf(branch) >= 0) {
+            return new String(new char[] {stem, branch});
+        }
+        return null;
     }
 
     private static final class Toc {
