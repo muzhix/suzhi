@@ -3,14 +3,14 @@
   "name": "纪传体·目录异形",
   "toc": {
     "present": true,
-    "linePattern": "^(卷[一二三四五六七八九十百千万零〇0-9]+)\\s+(.+)$",
+    "linePattern": "^(卷[一二三四五六七八九十百千万零〇0-9]+[上中下]?)\\s+(.+)$",
     "usage": "volume_lookup",
     "dropLeadingCopy": false
   },
   "headings": [
     {
       "id": "pian",
-      "pattern": "^(本纪|本紀|世家|列传|列傳|表|书|書|志)(第[一二三四五六七八九十百千万零〇0-9]+)\\s*(.*)$",
+      "pattern": "^(本纪|本紀|世家|列传|列傳|表|书|書|志)(第[一二三四五六七八九十百千万零〇0-9]+[上中下]?)\\s*(.*)$",
       "pathTemplate": ["{tocVolume} {tocKey} $3"],
       "tocKeyTemplate": "$1$2",
       "nodeType": "pian"

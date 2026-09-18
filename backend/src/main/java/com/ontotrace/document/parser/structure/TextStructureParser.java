@@ -275,8 +275,14 @@ public class TextStructureParser {
         return trimLine(raw);
     }
 
+    /**
+     * 去掉 BOM 与行首行尾空白后再做标题匹配。{@link String#trim()} 不去掉全角空格 U+3000。
+     *
+     * @param raw 原始行，可为 null
+     * @return 去掉 BOM、空格、tab、全角空格后的文本
+     */
     private static String trimLine(String raw) {
-        return raw == null ? "" : raw.replace("\uFEFF", "").trim();
+        return raw == null ? "" : raw.replace("\uFEFF", "").strip();
     }
 
     static String normalize(String raw) {
