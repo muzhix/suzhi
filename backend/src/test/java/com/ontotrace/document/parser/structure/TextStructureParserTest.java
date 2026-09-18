@@ -327,6 +327,69 @@ class TextStructureParserTest {
     }
 
     /**
+     * 切分含下、中之上、下之下、上之中；括号里顿号或逗号；癸已当作癸巳；长帝号仍拆成二级加三级。
+     */
+    @Test
+    void biannianMatchesLeftoverEmperorYearTitles() {
+        StructureProfile profile = registry.require("biannian-juan-ji-nian");
+        TextStructureParser.ParseResult result = parser.parse(read("biannian-leftover-year.txt"), profile);
+        assertTrue(result.acceptable(), result.summary());
+        List<String> titles = List.of(
+                "世祖武皇帝下元康七年（丁巳、公元二九七年）",
+                "肃宗明皇帝下太宁三年（乙酉、公元三二五年）",
+                "显宗成皇帝上之下咸和四年（己丑、公元三二九年）",
+                "显宗成皇帝中之上咸和八年（癸已，公元三三三年）",
+                "高宗宣皇帝下之下至德元年（癸卯、公元五八三年）",
+                "恭皇帝下义宁元年（丁丑、公元六一七年）",
+                "高祖神尧大圣光孝皇帝上之下武德二年（己卯、公元六一九年）",
+                "太宗文武大圣大广孝皇帝上之中贞观三年（己丑、公元六二九年）");
+        for (String title : titles) {
+            assertTrue(
+                    result.unmatchedHeadings().stream().noneMatch(title::equals),
+                    () -> "未识别 " + title + " " + result.unmatchedHeadings());
+        }
+        assertTrue(result.unmatchedHeadings().isEmpty(), () -> result.unmatchedHeadings().toString());
+        record Case(String path, int ceYear, String ganzhi, String di, String year) {}
+        List<Case> cases = List.of(
+                new Case("卷第八十二（晋纪四）/世祖武皇帝下/元康七年", 297, "丁巳", "世祖武皇帝下", "元康七年"),
+                new Case("卷第八十二（晋纪四）/肃宗明皇帝下/太宁三年", 325, "乙酉", "肃宗明皇帝下", "太宁三年"),
+                new Case("卷第八十二（晋纪四）/显宗成皇帝上之下/咸和四年", 329, "己丑", "显宗成皇帝上之下", "咸和四年"),
+                new Case("卷第八十二（晋纪四）/显宗成皇帝中之上/咸和八年", 333, "癸巳", "显宗成皇帝中之上", "咸和八年"),
+                new Case("卷第八十二（晋纪四）/高宗宣皇帝下之下/至德元年", 583, "癸卯", "高宗宣皇帝下之下", "至德元年"),
+                new Case("卷第八十二（晋纪四）/恭皇帝下/义宁元年", 617, "丁丑", "恭皇帝下", "义宁元年"),
+                new Case(
+                        "卷第八十二（晋纪四）/高祖神尧大圣光孝皇帝上之下/武德二年",
+                        619,
+                        "己卯",
+                        "高祖神尧大圣光孝皇帝上之下",
+                        "武德二年"),
+                new Case(
+                        "卷第八十二（晋纪四）/太宗文武大圣大广孝皇帝上之中/贞观三年",
+                        629,
+                        "己丑",
+                        "太宗文武大圣大广孝皇帝上之中",
+                        "贞观三年"));
+        for (Case item : cases) {
+            assertEquals(1, count(result, item.path()), item.path());
+            TextStructureParser.Unit unit = result.units().stream()
+                    .filter(row -> item.path().equals(row.path()))
+                    .findFirst()
+                    .orElseThrow();
+            assertEquals(item.ceYear(), unit.ceYear(), item.path());
+            assertEquals(item.ganzhi(), unit.ganzhi(), item.path());
+            OutlineTrees.OutlineNode node = findNode(result.outline(), item.path());
+            assertEquals(item.year(), node.label());
+            assertEquals(item.ceYear(), node.ceYear());
+            assertEquals(item.ganzhi(), node.ganzhi());
+            assertEquals(item.di(), findNode(result.outline(), parentPath(item.path())).label());
+        }
+        assertTrue(result.units().stream().noneMatch(unit -> unit.path().contains("公元")));
+        assertEquals("癸巳", TextStructureParser.normalizeGanzhi("癸已"));
+        assertEquals("己丑", TextStructureParser.normalizeGanzhi("己丑"));
+        assertFalse(profile.name().contains("通鉴"));
+    }
+
+    /**
      * 识别不到标题时不得当作可确认结果，也不生成 pN。
      */
     @Test
@@ -343,6 +406,14 @@ class TextStructureParserTest {
 
     private static long count(TextStructureParser.ParseResult result, String path) {
         return result.units().stream().filter(unit -> path.equals(unit.path())).count();
+    }
+
+    private static String parentPath(String path) {
+        int at = path.lastIndexOf('/');
+        if (at < 0) {
+            throw new AssertionError("没有父路径 " + path);
+        }
+        return path.substring(0, at);
     }
 
     private static OutlineTrees.OutlineNode findNode(List<OutlineTrees.OutlineNode> nodes, String path) {
