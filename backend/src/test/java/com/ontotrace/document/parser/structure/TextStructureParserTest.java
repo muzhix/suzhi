@@ -11,7 +11,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * 三套体例切片：目录异形反查卷号、同形去文前目录、编年卷/纪/年且年下多段。
+ * 三套体例切片：目录异形反查卷号一层 path、同形去文前目录且一层 path 按段切、编年卷/纪/年且年下多段。
  *
  * @author hanbd
  */
@@ -127,21 +127,53 @@ class TextStructureParserTest {
     }
 
     /**
-     * 丢掉文前目录副本；表节点可识别；正文卷下多段。
+     * 丢掉文前目录副本；卷名整串一层 path，不是 {@code 卷一/五帝本纪第一}；
+     * 空行或全角缩进各切一段，标题行不进 unit。
      */
     @Test
     void sameDropsLeadingTocCopy() {
+        String fixture = read("jizhuan-toc-same.txt");
+        int tocTitle = fixture.indexOf("卷一 五帝本纪第一");
+        int bodyTitle = fixture.lastIndexOf("卷一 五帝本纪第一");
+        assertTrue(tocTitle >= 0 && bodyTitle > tocTitle);
+        String body = fixture.substring(bodyTitle);
+        assertTrue(body.contains("\u3000\u3000黄帝者"));
+        assertTrue(body.contains("\u3000\u3000轩辕之时"));
+        assertTrue(body.contains("夏禹，名曰文命。禹之父曰鲧。\n\n禹为人敏给克勤。"));
+
         StructureProfile profile = registry.require("jizhuan-toc-same");
-        TextStructureParser.ParseResult result = parser.parse(read("jizhuan-toc-same.txt"), profile);
+        TextStructureParser.ParseResult result = parser.parse(fixture, profile);
         assertTrue(result.acceptable(), result.summary());
-        assertEquals("卷一/五帝本纪第一", result.units().getFirst().path());
-        assertEquals(2, count(result, "卷一/五帝本纪第一"));
-        assertEquals(2, count(result, "卷二/夏本纪第二"));
-        assertEquals(2, count(result, "卷十三/三代世表第一"));
-        assertTrue(StructurePaths.skipEdu("卷十三/三代世表第一"));
-        long juanYi = result.units().stream().filter(unit -> unit.path().startsWith("卷一/")).count();
-        assertEquals(2, juanYi);
-        assertFalse(result.units().stream().anyMatch(unit -> unit.text().equals("卷一 五帝本纪第一")));
+        assertEquals(3, result.headingCount());
+        assertEquals(
+                List.of(
+                        "卷一 五帝本纪第一",
+                        "卷一 五帝本纪第一",
+                        "卷二 夏本纪第二",
+                        "卷二 夏本纪第二",
+                        "卷十三 三代世表第一",
+                        "卷十三 三代世表第一"),
+                paths(result));
+        assertTrue(paths(result).stream().noneMatch(path -> path.contains("/")));
+        assertTrue(result.units().size() > 1);
+        assertEquals(2, count(result, "卷一 五帝本纪第一"));
+        assertEquals(2, count(result, "卷二 夏本纪第二"));
+        assertEquals(2, count(result, "卷十三 三代世表第一"));
+        assertEquals("黄帝者，少典之子，姓公孙，名曰轩辕。", result.units().get(0).text());
+        assertEquals("轩辕之时，神农氏世衰。", result.units().get(1).text());
+        assertEquals("夏禹，名曰文命。禹之父曰鲧。", result.units().get(2).text());
+        assertEquals("禹为人敏给克勤。", result.units().get(3).text());
+        assertTrue(result.units().stream().noneMatch(unit -> unit.text().contains("黄帝者") && unit.text().contains("轩辕之时")));
+        assertEquals(
+                List.of("卷一 五帝本纪第一", "卷二 夏本纪第二", "卷十三 三代世表第一"),
+                result.outline().stream().map(OutlineTrees.OutlineNode::path).toList());
+        assertTrue(result.outline().stream().allMatch(node -> node.children().isEmpty()));
+        assertTrue(StructurePaths.skipEdu("卷十三 三代世表第一"));
+        assertFalse(StructurePaths.skipEdu("卷一 五帝本纪第一"));
+        assertFalse(result.units().stream().anyMatch(unit -> unit.text().equals("卷一 五帝本纪第一")
+                || unit.text().equals("卷二 夏本纪第二")
+                || unit.text().equals("卷十三 三代世表第一")));
+        assertTrue(result.units().stream().noneMatch(unit -> "文前".equals(unit.path())));
         assertFalse(profile.name().contains("史记"));
     }
 

@@ -11,7 +11,7 @@
     {
       "id": "juan-pian",
       "pattern": "^(卷[一二三四五六七八九十百千万零〇0-9]+)\\s+(.+)$",
-      "pathTemplate": ["$1", "$2"],
+      "pathTemplate": ["$1 $2"],
       "nodeType": "pian"
     }
   ],

@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,6 +80,30 @@ class TextStructureParserFullBookTest {
                 if (result.units().stream().noneMatch(unit -> path.equals(unit.path()))) {
                     throw new AssertionError(schemeId + " 未对照 " + path + ": " + result.summary());
                 }
+            }
+        }
+        if ("jizhuan-toc-same".equals(schemeId)) {
+            if (result.units().stream().anyMatch(unit -> unit.path().contains("/"))) {
+                throw new AssertionError(schemeId + " path 含多层 /");
+            }
+            if (result.units().stream().anyMatch(unit -> "文前".equals(unit.path()))) {
+                throw new AssertionError(schemeId + " 目录树出现文前");
+            }
+            if (result.units().stream().anyMatch(unit -> unit.path().equals(unit.text()))) {
+                throw new AssertionError(schemeId + " 卷标题进了 unit");
+            }
+            long maxPerPath = result.units().stream()
+                    .collect(Collectors.groupingBy(TextStructureParser.Unit::path, Collectors.counting()))
+                    .values()
+                    .stream()
+                    .mapToLong(Long::longValue)
+                    .max()
+                    .orElse(0);
+            if (maxPerPath <= 1) {
+                throw new AssertionError(schemeId + " 整卷合成一段 " + result.summary());
+            }
+            if (result.outline().stream().anyMatch(node -> !node.children().isEmpty())) {
+                throw new AssertionError(schemeId + " 目录同形不应拆成两级");
             }
         }
         return 1;
