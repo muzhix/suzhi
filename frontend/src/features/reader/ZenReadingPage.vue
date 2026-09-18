@@ -368,8 +368,9 @@ function exitZen() {
       </header>
       <div class="flex min-h-0 flex-1" @pointerdown="hideChromeSoon">
         <aside
-          class="zen-outline h-full min-h-0 w-64 shrink-0 flex-col border-r"
+          class="zen-outline h-full min-h-0 w-64 shrink-0 flex-col border-r transition-[padding-top] duration-150"
           :class="outlineOpen ? 'flex' : 'hidden md:flex'"
+          :style="{ paddingTop: chromeOpen ? `${ZEN_CHROME_HOTZONE_PX}px` : '0px' }"
         >
           <ScrollArea class="h-full px-2 py-3">
             <OutlineTree
@@ -431,9 +432,13 @@ function exitZen() {
 }
 
 .zen-chrome[data-open='1'] {
-  pointer-events: auto;
+  pointer-events: none;
   opacity: 1;
   transform: none;
+}
+
+.zen-chrome[data-open='1'] :deep(button) {
+  pointer-events: auto;
 }
 
 .zen-para-rule {
