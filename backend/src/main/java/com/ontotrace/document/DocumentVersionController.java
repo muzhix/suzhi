@@ -64,7 +64,10 @@ public class DocumentVersionController {
     @GetMapping("/{versionId}/outline")
     public OutlineResponse outline(@AuthenticationPrincipal CurrentUser user, @PathVariable UUID versionId) {
         requireVersion(user, versionId);
-        List<OutlineTrees.OutlineNode> nodes = OutlineTrees.fromPaths(textUnitRepo.findPathsByDocumentVersionId(versionId));
+        List<OutlineTrees.OutlineNode> nodes = OutlineTrees.fromPathNotes(
+                textUnitRepo.findPathNotesByDocumentVersionId(versionId).stream()
+                        .map(row -> new OutlineTrees.PathNote(row.path(), row.ceYear(), row.ganzhi()))
+                        .toList());
         int unitCount = nodes.stream().mapToInt(OutlineTrees.OutlineNode::unitCount).sum();
         return new OutlineResponse(nodes, unitCount);
     }

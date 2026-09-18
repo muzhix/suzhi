@@ -3,6 +3,8 @@ export interface OutlineNode {
   label: string
   unitCount: number
   children: OutlineNode[]
+  ceYear?: number | null
+  ganzhi?: string | null
 }
 
 export interface OutlineResponse {
@@ -19,6 +21,10 @@ export interface HeadingRule {
   tocKeyTemplate?: string | null
   nodeType?: string | null
   mergeNextYear?: boolean | null
+  prefix?: boolean | null
+  foldIntoParent?: boolean | null
+  ceYearGroup?: number | null
+  ganzhiGroup?: number | null
 }
 
 export interface StructureProfile {

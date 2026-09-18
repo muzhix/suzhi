@@ -178,15 +178,64 @@ class StructureExtractionIT {
                 UnprocessableException.class,
                 () -> jobService.submitEdu(user, versionId, null, null, null, false));
 
-        Job scoped = jobService.submitEdu(user, versionId, null, null, "卷第一/周纪一/威烈王二十三年", false);
+        Job scoped = jobService.submitEdu(user, versionId, null, null, "卷第一（周纪一）/威烈王二十三年", false);
         runToCompletion(scoped);
         ProcessingRun run = processingRunRepo.findFirstByJobIdOrderByCreatedAtDesc(scoped.getId()).orElseThrow();
-        assertEquals("path:卷第一/周纪一/威烈王二十三年", run.getInputRange());
+        assertEquals("path:卷第一（周纪一）/威烈王二十三年", run.getInputRange());
         assertEquals(2, eduRepo.findVisible(versionId).size());
 
-        Job other = jobService.submitEdu(user, versionId, null, null, "卷第二/秦纪一/昭襄王五十二年", false);
+        Job other = jobService.submitEdu(user, versionId, null, null, "卷第二（秦纪一）/昭襄王五十二年", false);
         runToCompletion(other);
         assertEquals(3, eduRepo.findVisible(versionId).size());
+    }
+
+    /**
+     * 编年体公元、干支随文本单元落库，目录树从 path 聚合时带回附注，不写进 path。
+     */
+    @Test
+    void biannianPersistsCeYearNotesOffPath() {
+        CurrentUser user = admin();
+        Document document = documentService.create(user, "通鉴年附注", null, null);
+        seedUpload(document.getId(), user.id(), readSlice("biannian-glued-year.txt"));
+        Job job = jobService.submitExtract(
+                user, document.getId(), null, new StructureSchemeRequest("biannian-juan-ji-nian", null));
+        runToCompletion(job);
+        UUID versionId = jobRepo.findById(job.getId()).orElseThrow().getDocumentVersionId();
+        TextUnit jianwu = textUnitRepo.findByDocumentVersionIdOrderBySeqAsc(versionId).stream()
+                .filter(unit -> "卷第四十三（汉纪三十五）/世祖光武皇帝中/建武十二年".equals(unit.getPath()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(36, jianwu.getCeYear());
+        assertEquals("丙申", jianwu.getGanzhi());
+        assertFalse(jianwu.getPath().contains("公元"));
+        List<OutlineTrees.OutlineNode> nodes = OutlineTrees.fromPathNotes(
+                textUnitRepo.findPathNotesByDocumentVersionId(versionId).stream()
+                        .map(row -> new OutlineTrees.PathNote(row.path(), row.ceYear(), row.ganzhi()))
+                        .toList());
+        OutlineTrees.OutlineNode year = findOutline(nodes, "卷第四十三（汉纪三十五）/世祖光武皇帝中/建武十二年");
+        assertNotNull(year);
+        assertEquals(36, year.ceYear());
+        assertEquals("丙申", year.ganzhi());
+        assertEquals("建武十二年", year.label());
+        OutlineTrees.OutlineNode juan18 = findOutline(nodes, "卷第十八（汉纪十）");
+        assertNotNull(juan18);
+        assertEquals("世宗孝武皇帝上之下", juan18.children().getFirst().label());
+        assertEquals(
+                List.of("元光二年", "元光三年", "元光四年"),
+                juan18.children().getFirst().children().stream().map(OutlineTrees.OutlineNode::label).toList());
+    }
+
+    private static OutlineTrees.OutlineNode findOutline(List<OutlineTrees.OutlineNode> nodes, String path) {
+        for (OutlineTrees.OutlineNode node : nodes) {
+            if (path.equals(node.path())) {
+                return node;
+            }
+            OutlineTrees.OutlineNode nested = findOutline(node.children(), path);
+            if (nested != null) {
+                return nested;
+            }
+        }
+        return null;
     }
 
     private CurrentUser admin() {

@@ -21,13 +21,19 @@ public interface TextUnitRepository extends ListCrudRepository<TextUnit, UUID> {
     List<TextUnit> findByDocumentVersionIdOrderBySeqAsc(UUID documentVersionId);
 
     /**
-     * 只读 path，供目录树聚合，避免把全书正文载入内存。
+     * 只读 path 与年附注，供目录树聚合，避免把全书正文载入内存。
      *
      * @param documentVersionId 版本标识
-     * @return path 列表
+     * @return path 与公元、干支
      */
-    @Query("SELECT path FROM text_unit WHERE document_version_id = :documentVersionId ORDER BY seq")
-    List<String> findPathsByDocumentVersionId(UUID documentVersionId);
+    @Query(
+            """
+            SELECT path, ce_year AS "ceYear", ganzhi
+            FROM text_unit
+            WHERE document_version_id = :documentVersionId
+            ORDER BY seq
+            """)
+    List<TextUnitPath> findPathNotesByDocumentVersionId(UUID documentVersionId);
 
     /**
      * 按 path 前缀读取文本单元。
@@ -39,7 +45,7 @@ public interface TextUnitRepository extends ListCrudRepository<TextUnit, UUID> {
      */
     @Query(
             """
-            SELECT id, document_version_id, seq, path, display_text, page_no
+            SELECT id, document_version_id, seq, path, display_text, page_no, ce_year, ganzhi
             FROM text_unit
             WHERE document_version_id = :documentVersionId
               AND (path = :prefix OR path LIKE :prefixLike ESCAPE '\\')
