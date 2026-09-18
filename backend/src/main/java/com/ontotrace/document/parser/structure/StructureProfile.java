@@ -11,7 +11,7 @@ import java.util.List;
  * @param toc 文前目录规则
  * @param headings 标题规则，从上到下先匹配者生效
  * @param alignment {@code lookup_volume_from_toc} 或 {@code title_has_volume}
- * @param paragraph {@code blank}、{@code indent} 或 {@code blank_or_indent}
+ * @param paragraph {@code blank}、{@code indent}、{@code blank_or_indent} 或 {@code line}（一行一段）
  * @param neighbor 邻居边界，B1 写入快照，组装仍归 B2
  * @param skipEduNodeTypes 默认不抽 EDU 的节点类型
  * @author hanbd

@@ -121,7 +121,7 @@ public class TextStructureParser {
         }
         String trimmed = trimLine(raw);
         if (trimmed.isEmpty()) {
-            if (state.blankSplits()) {
+            if (state.blankSplits() || state.lineSplits()) {
                 state.flush();
             }
             return;
@@ -130,6 +130,11 @@ public class TextStructureParser {
         if (heading != null) {
             state.flush();
             state.applyHeading(heading);
+            return;
+        }
+        if (state.lineSplits()) {
+            state.flush();
+            state.append(trimmed);
             return;
         }
         if (looksUnmatchedHeading(trimmed)) {
@@ -416,6 +421,10 @@ public class TextStructureParser {
         private boolean indentSplits() {
             String mode = profile.paragraph();
             return "indent".equals(mode) || "blank_or_indent".equals(mode);
+        }
+
+        private boolean lineSplits() {
+            return "line".equals(profile.paragraph());
         }
 
         private void append(String text) {
