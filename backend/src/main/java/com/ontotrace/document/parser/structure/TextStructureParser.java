@@ -484,6 +484,19 @@ public class TextStructureParser {
         return label;
     }
 
+    /**
+     * 干支地支「巳」常被写成「已」。只替换这一个错字，不改天干「己」。
+     *
+     * @param raw 干支，可空
+     * @return 规范化干支；空白则为 null
+     */
+    static String normalizeGanzhi(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return raw.replace('已', '巳');
+    }
+
     private static final class Toc {
         private final Map<String, String> volumeByKey = new LinkedHashMap<>();
         private final List<String> lines = new ArrayList<>();
@@ -611,8 +624,7 @@ public class TextStructureParser {
                     currentCeYear = chinesePositionalYear(matcher.group(rule.ceYearGroup()));
                 }
                 if (rule.ganzhiGroup() != null && matcher.groupCount() >= rule.ganzhiGroup()) {
-                    String ganzhi = matcher.group(rule.ganzhiGroup());
-                    currentGanzhi = ganzhi == null || ganzhi.isBlank() ? null : ganzhi;
+                    currentGanzhi = normalizeGanzhi(matcher.group(rule.ganzhiGroup()));
                 }
                 if (currentCeYear != null || currentGanzhi != null) {
                     log.debug("nian note path-label={} ceYear={} ganzhi={}", label, currentCeYear, currentGanzhi);
