@@ -47,6 +47,9 @@ class TextStructureParserTest {
                 || unit.text().equals("列传第一 后妃上")));
         assertEquals(2, count(result, "卷一 本纪第一 高祖"));
         assertTrue(result.unmatchedVolumes().isEmpty());
+        assertTrue(result.units().stream().noneMatch(unit -> "文前".equals(unit.path())));
+        assertTrue(result.outline().stream().noneMatch(node -> "文前".equals(node.path())));
+        assertTrue(result.units().stream().noneMatch(unit -> unit.text().equals("附录")));
         assertEquals("纪传体·目录异形", profile.name());
         assertFalse(profile.name().contains("旧唐书"));
     }
@@ -72,6 +75,8 @@ class TextStructureParserTest {
         assertTrue(result.unmatchedVolumes().stream().noneMatch(volume -> volume.startsWith("卷二 ")));
         assertTrue(result.unmatchedHeadings().stream().noneMatch(heading -> heading.contains("卷十七上")));
         assertTrue(result.outline().stream().anyMatch(node -> "卷二 本纪第二 太宗上".equals(node.path())));
+        assertTrue(result.outline().stream().noneMatch(node -> "文前".equals(node.path())));
+        assertTrue(result.units().stream().noneMatch(unit -> "文前".equals(unit.path()) || unit.text().equals("附录")));
         assertTrue(result.outline().stream().allMatch(node -> node.children().isEmpty()));
     }
 

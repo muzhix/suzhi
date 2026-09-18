@@ -65,6 +65,9 @@ class TextStructureParserFullBookTest {
             if (result.units().stream().anyMatch(unit -> unit.path().contains("/"))) {
                 throw new AssertionError(schemeId + " path 含多层 /");
             }
+            if (result.units().stream().anyMatch(unit -> "文前".equals(unit.path()))) {
+                throw new AssertionError(schemeId + " 目录树出现文前");
+            }
             if (!result.unmatchedVolumes().isEmpty()) {
                 throw new AssertionError(schemeId + " 未对照卷 " + result.unmatchedVolumes());
             }

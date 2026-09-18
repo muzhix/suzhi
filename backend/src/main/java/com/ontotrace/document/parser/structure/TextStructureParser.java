@@ -78,7 +78,7 @@ public class TextStructureParser {
         String[] lines = normalizedText.split("\n", -1);
         List<CompiledHeading> headings = compile(profile);
         Toc toc = extractToc(lines, profile);
-        int bodyStart = bodyStart(lines, profile, toc);
+        int bodyStart = bodyStart(lines, profile, toc, headings);
         State state = new State(profile, toc);
         if (bodyStart > 0 && !toc.volumeByKey.isEmpty()) {
             log.debug("structure toc lines={} bodyStart={}", toc.lines.size(), bodyStart);
@@ -146,7 +146,17 @@ public class TextStructureParser {
         state.append(trimmed);
     }
 
-    private static int bodyStart(String[] lines, StructureProfile profile, Toc toc) {
+    /**
+     * 正文起点。目录同形从第二份卷题起算；目录异形跳过目录结束后的「附录」等残行，从第一条正文标题起算，避免默认 path「文前」。
+     *
+     * @param lines 全文行
+     * @param profile 结构方案
+     * @param toc 已抽出的目录
+     * @param headings 编译后的标题规则
+     * @return 正文起始下标
+     */
+    private static int bodyStart(String[] lines, StructureProfile profile, Toc toc, List<CompiledHeading> headings) {
+        int start = toc.endIndex;
         if (profile.toc() != null && profile.toc().dropCopy() && !toc.lines.isEmpty()) {
             String first = toc.lines.getFirst();
             int seen = 0;
@@ -159,9 +169,32 @@ public class TextStructureParser {
                 }
             }
             toc.missingCopy = true;
-            return toc.endIndex;
+            start = toc.endIndex;
         }
-        return toc.endIndex;
+        if (profile.toc() != null && profile.toc().lookupVolume() && !toc.lines.isEmpty()) {
+            return skipToFirstHeading(lines, start, headings);
+        }
+        return start;
+    }
+
+    /**
+     * 从目录结束处扫到第一条正文标题。中间的「附录」等短标签不进 unit。
+     *
+     * @param lines 全文行
+     * @param start 目录结束下标
+     * @param headings 标题规则
+     * @return 第一条标题的下标；若没有标题则仍从 {@code start} 起，以免整书被丢掉
+     */
+    private static int skipToFirstHeading(String[] lines, int start, List<CompiledHeading> headings) {
+        for (int i = start; i < lines.length; i++) {
+            if (matchHeading(trimLine(lines[i]), headings) != null) {
+                if (i > start) {
+                    log.debug("skip toc residue lines={} bodyStart={}", i - start, i);
+                }
+                return i;
+            }
+        }
+        return start;
     }
 
     private Toc extractToc(String[] lines, StructureProfile profile) {
