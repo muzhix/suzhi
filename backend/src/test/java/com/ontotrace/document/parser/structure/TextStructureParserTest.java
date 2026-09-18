@@ -390,7 +390,7 @@ class TextStructureParserTest {
     }
 
     /**
-     * 括号或◎后的干支不合法时仍要收下年号。形近错字纠正后写入；纠正不了则干支为空，公元仍在。
+     * 括号或◎后的干支不合法时仍要收下年号。形近错字纠正后写入；丙年、壬庚按底本定向映射，不按公元反推。
      */
     @Test
     void biannianKeepsYearWhenGanzhiIsTypoOrInvalid() {
@@ -422,7 +422,7 @@ class TextStructureParserTest {
                 new Case(
                         "卷第二百四十三（唐纪五十九）/穆宗睿圣文惠孝皇帝下/宝历二年",
                         826,
-                        null,
+                        "丙午",
                         "穆宗睿圣文惠孝皇帝下",
                         "宝历二年"),
                 new Case(
@@ -440,7 +440,7 @@ class TextStructureParserTest {
                 new Case(
                         "卷第二百五十二（唐纪六十八）/懿宗昭圣恭惠孝皇帝下/咸通十三年",
                         872,
-                        null,
+                        "壬辰",
                         "懿宗昭圣恭惠孝皇帝下",
                         "咸通十三年"),
                 new Case("卷第四十三（汉纪三十五）/世祖光武皇帝中/建武十二年", 36, "辛未", "世祖光武皇帝中", "建武十二年"),
@@ -473,8 +473,10 @@ class TextStructureParserTest {
         assertEquals("甲戌", TextStructureParser.normalizeGanzhi("甲戊"));
         assertEquals("癸巳", TextStructureParser.normalizeGanzhi("癸已"));
         assertEquals("己丑", TextStructureParser.normalizeGanzhi("己丑"));
-        assertEquals(null, TextStructureParser.normalizeGanzhi("丙年"));
-        assertEquals(null, TextStructureParser.normalizeGanzhi("壬庚"));
+        assertEquals("丙午", TextStructureParser.normalizeGanzhi("丙年"));
+        assertEquals("壬辰", TextStructureParser.normalizeGanzhi("壬庚"));
+        assertEquals(null, TextStructureParser.normalizeGanzhi("丁年"));
+        assertEquals(null, TextStructureParser.normalizeGanzhi("甲庚"));
         assertFalse(profile.name().contains("通鉴"));
     }
 

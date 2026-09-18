@@ -489,6 +489,7 @@ public class TextStructureParser {
 
     /**
      * 干支按位置纠正形近错字：地支「巳/未/戌」常写成「已/末/戊」，天干「戊」常写成「戌」。
+     * 底本另有两条定向纠正：{@code 丙年}→{@code 丙午}、{@code 壬庚}→{@code 壬辰}，不按公元反推。
      * 纠正后仍不是天干加地支则返回 null，不挡住年号识别。不改天干「己」。
      *
      * @param raw 干支，可空
@@ -501,6 +502,15 @@ public class TextStructureParser {
         String token = raw.strip();
         if (token.length() != 2) {
             return null;
+        }
+        String exact =
+                switch (token) {
+                    case "丙年" -> "丙午";
+                    case "壬庚" -> "壬辰";
+                    default -> null;
+                };
+        if (exact != null) {
+            return exact;
         }
         char stem = token.charAt(0) == '戌' ? '戊' : token.charAt(0);
         char branch =
