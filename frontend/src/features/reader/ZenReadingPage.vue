@@ -355,7 +355,7 @@ function exitZen() {
 .zen-para-rule::after {
   content: "";
   flex: 1 1 0;
-  border-top: 1px solid color-mix(in oklab, var(--zen-fg) 18%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--zen-fg) 10%, transparent);
 }
 
 .zen-classical {
