@@ -42,10 +42,7 @@ function onSelect(node: OutlineNode) {
           <span
             v-if="node.ganzhi || node.ceYear != null"
             class="ml-1 text-xs font-normal text-muted-foreground"
-          >
-            <template v-if="node.ganzhi">{{ node.ganzhi }} </template>
-            <template v-if="node.ceYear != null">公元{{ node.ceYear }}年</template>
-          </span>
+          >{{ node.ganzhi ? `${node.ganzhi} ` : '' }}{{ node.ceYear != null ? `公元${node.ceYear}年` : '' }}</span>
           <span class="text-muted-foreground"> · {{ node.unitCount }}</span>
         </span>
       </button>
