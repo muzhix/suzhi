@@ -13,11 +13,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import DocumentJobBadge from '@/features/documents/DocumentJobBadge.vue'
 import ExtractEduDialog from '@/features/documents/ExtractEduDialog.vue'
 import OutlineTree from './OutlineTree.vue'
+import ZenReadingButton from './ZenReadingButton.vue'
 import { firstLeaf, type EduItem, type OutlineResponse, type TextUnit } from './types'
 
 const route = useRoute()
 const router = useRouter()
 const queryClient = useQueryClient()
+const documentId = computed(() => String(route.params.documentId))
 const versionId = computed(() => String(route.params.versionId))
 const selectedPath = computed(() => (typeof route.query.path === 'string' ? route.query.path : ''))
 const selectedUnitId = computed(() => (typeof route.query.unit === 'string' ? route.query.unit : ''))
@@ -150,6 +152,7 @@ async function onJobDone() {
             EDU
           </Button>
         </div>
+        <ZenReadingButton :document-id="documentId" :version-id="versionId" :path="selectedPath" />
         <Button
           size="sm"
           type="button"

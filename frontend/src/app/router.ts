@@ -3,6 +3,7 @@ import LoginPage from '@/features/auth/LoginPage.vue'
 import DocumentListPage from '@/features/documents/DocumentListPage.vue'
 import DocumentDetailPage from '@/features/documents/DocumentDetailPage.vue'
 import ReaderPage from '@/features/reader/ReaderPage.vue'
+import ZenReadingPage from '@/features/reader/ZenReadingPage.vue'
 import SearchPage from '@/features/search/SearchPage.vue'
 import UserListPage from '@/features/users/UserListPage.vue'
 
@@ -16,6 +17,10 @@ export const router = createRouter({
     {
       path: '/documents/:documentId/versions/:versionId/read',
       component: ReaderPage,
+    },
+    {
+      path: '/documents/:documentId/versions/:versionId/zen',
+      component: ZenReadingPage,
     },
     { path: '/search', component: SearchPage },
     { path: '/users', component: UserListPage },

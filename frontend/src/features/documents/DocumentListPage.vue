@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import ZenReadingButton from '@/features/reader/ZenReadingButton.vue'
 import DocumentJobBadge from './DocumentJobBadge.vue'
 import ExtractContentDialog from './ExtractContentDialog.vue'
 import ExtractEduDialog from './ExtractEduDialog.vue'
@@ -364,6 +365,7 @@ async function onJobDone(documentId: string) {
                   </TooltipTrigger>
                   <TooltipContent>提取内容</TooltipContent>
                 </Tooltip>
+                <ZenReadingButton :document-id="doc.id" :version-id="doc.latestVersionId" />
                 <Tooltip>
                   <TooltipTrigger as-child>
                     <span class="inline-flex">
