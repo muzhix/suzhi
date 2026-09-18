@@ -3,6 +3,7 @@ import {
   ensureNotoSerifCjk,
   NOTO_SERIF_CJK_CSS,
   parseZenSize,
+  parseZenWide,
   zenBodyFontSize,
   zenReadingLocation,
   ZEN_SIZE_DEFAULT,
@@ -24,6 +25,14 @@ describe('zen reading helpers', () => {
     expect(zenBodyFontSize(16)).toBe(18)
     expect(zenBodyFontSize(40)).toBe(42)
     expect(ZEN_SIZE_PRESETS).toEqual({ small: 14, medium: 16, large: 20 })
+  })
+
+  it('treats only wide=1 as full-width body', () => {
+    expect(parseZenWide(undefined)).toBe(false)
+    expect(parseZenWide('')).toBe(false)
+    expect(parseZenWide('0')).toBe(false)
+    expect(parseZenWide('true')).toBe(false)
+    expect(parseZenWide('1')).toBe(true)
   })
 
   it('builds the shell-less zen path without size', () => {

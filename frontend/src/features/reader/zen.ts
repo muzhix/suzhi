@@ -12,6 +12,15 @@ const NOTO_CSS_ID = 'noto-serif-cjk-font-css'
 export const NOTO_SERIF_CJK_CSS = 'https://fontsapi.zeoseven.com/285/main/result.css'
 
 /**
+ * 把 query `wide` 收成全宽开关。仅 `1` 为开，缺省或其它值都是窄栏。
+ *
+ * @param raw 路由 query
+ */
+export function parseZenWide(raw: unknown): boolean {
+  return raw === '1'
+}
+
+/**
  * 把 query `size` 收成滑杆整数。缺省或非法回落到 16，并钳到 14–40。
  *
  * @param raw 路由 query

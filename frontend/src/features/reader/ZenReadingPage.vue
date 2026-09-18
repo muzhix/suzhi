@@ -13,6 +13,7 @@ import { firstLeaf, type OutlineResponse, type TextUnit } from './types'
 import {
   ensureNotoSerifCjk,
   parseZenSize,
+  parseZenWide,
   ZEN_SIZE_MAX,
   ZEN_SIZE_MIN,
   ZEN_SIZE_PRESETS,
@@ -24,6 +25,7 @@ const documentId = computed(() => String(route.params.documentId))
 const versionId = computed(() => String(route.params.versionId))
 const selectedPath = computed(() => (typeof route.query.path === 'string' ? route.query.path : ''))
 const fontSize = computed(() => parseZenSize(route.query.size))
+const fullWidth = computed(() => parseZenWide(route.query.wide))
 const outlineOpen = ref(false)
 
 const outline = useQuery({
@@ -44,14 +46,22 @@ const units = useQuery({
   enabled: computed(() => Boolean(versionId.value && selectedPath.value)),
 })
 
-function replaceQuery(next: { path?: string; size?: number }) {
+function replaceQuery(next: { path?: string; size?: number; wide?: boolean }) {
   const path = next.path ?? selectedPath.value
   const size = parseZenSize(next.size ?? fontSize.value)
+  const wide = next.wide ?? fullWidth.value
   const query: Record<string, string> = { size: String(size) }
   if (path) {
     query.path = path
   }
-  if (route.query.path === query.path && route.query.size === query.size) {
+  if (wide) {
+    query.wide = '1'
+  }
+  if (
+    route.query.path === query.path &&
+    route.query.size === query.size &&
+    (route.query.wide === '1') === wide
+  ) {
     return
   }
   void router.replace({ query })
@@ -97,6 +107,10 @@ function setSize(size: number) {
   replaceQuery({ size })
 }
 
+function toggleFullWidth() {
+  replaceQuery({ wide: !fullWidth.value })
+}
+
 function onSlider(values: number[] | undefined) {
   const next = values?.[0]
   if (next == null) {
@@ -128,6 +142,16 @@ function exitZen() {
           目录
         </Button>
         <div class="ml-auto flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            type="button"
+            :variant="fullWidth ? 'secondary' : 'ghost'"
+            :aria-pressed="fullWidth"
+            aria-label="全宽"
+            @click="toggleFullWidth"
+          >
+            全宽
+          </Button>
           <Button
             size="sm"
             type="button"
@@ -182,7 +206,11 @@ function exitZen() {
           </ScrollArea>
         </aside>
         <ScrollArea class="min-w-0 flex-1">
-          <div class="zen-body mx-auto max-w-[42em] px-6 py-8">
+          <div
+            class="zen-body px-6 py-8"
+            :class="fullWidth ? 'w-full' : 'mx-auto max-w-[42em]'"
+            :data-zen-wide="fullWidth ? '1' : '0'"
+          >
             <p v-for="unit in units.data.value ?? []" :key="unit.id" class="zen-classical">
               {{ unit.displayText }}
             </p>
