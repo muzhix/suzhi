@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Slider } from '@/components/ui/slider'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import OutlineTree from './OutlineTree.vue'
 import { firstLeaf, type OutlineResponse, type TextUnit } from './types'
 import {
@@ -151,18 +151,13 @@ function exitZen() {
         </Button>
         <div class="ml-auto">
           <Popover>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <PopoverTrigger as-child>
-                  <Button size="icon-sm" type="button" variant="ghost" aria-label="阅读配置">
-                    <SettingsIcon />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent>阅读配置</TooltipContent>
-            </Tooltip>
-            <PopoverContent class="w-[22rem]" align="end">
-              <div class="mb-3 flex items-center justify-between gap-2">
+            <PopoverTrigger as-child>
+              <Button size="icon-sm" type="button" variant="ghost" aria-label="阅读配置">
+                <SettingsIcon />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent class="max-h-[min(36rem,calc(100dvh-3rem))] w-[22rem] overflow-y-auto" align="end">
+              <div class="mb-2 flex items-center justify-between gap-2">
                 <p class="text-sm font-medium">阅读配置</p>
                 <PopoverClose as-child>
                   <Button size="icon-sm" type="button" variant="ghost" aria-label="关闭">
@@ -170,7 +165,7 @@ function exitZen() {
                   </Button>
                 </PopoverClose>
               </div>
-              <div class="grid gap-4">
+              <div class="grid gap-3">
                 <div class="grid gap-2">
                   <div class="flex items-center justify-between gap-2">
                     <Label>字体大小</Label>
