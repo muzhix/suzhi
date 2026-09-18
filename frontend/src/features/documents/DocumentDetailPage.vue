@@ -6,6 +6,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import DocumentJobBadge from './DocumentJobBadge.vue'
+import ZenReadingButton from '@/features/reader/ZenReadingButton.vue'
 import ExtractContentDialog from './ExtractContentDialog.vue'
 
 interface DocumentDetail {
@@ -50,6 +51,7 @@ async function onJobDone() {
   <AppLayout>
     <div class="space-y-4">
       <div class="flex flex-wrap items-center justify-end gap-3">
+        <ZenReadingButton :document-id="documentId" :version-id="versionId" />
         <Button size="sm" type="button" :disabled="extracting" @click="extractOpen = true">提取内容</Button>
         <DocumentJobBadge v-if="jobId" :job-id="jobId" @done="onJobDone" />
       </div>
