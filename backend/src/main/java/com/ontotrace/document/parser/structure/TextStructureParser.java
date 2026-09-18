@@ -97,8 +97,9 @@ public class TextStructureParser {
             warnings.add("结构识别过差，确认前请改方案。不得按空行退化成 p1/p2。");
         }
         log.info(
-                "parsed structure scheme={} headings={} units={} unmatchedVol={} unmatchedHead={} acceptable={}",
+                "parsed structure scheme={} paragraph={} headings={} units={} unmatchedVol={} unmatchedHead={} acceptable={}",
                 profile.id(),
+                profile.paragraph(),
                 state.headingCount,
                 state.units.size(),
                 unmatchedVolumes.size(),
@@ -136,6 +137,11 @@ public class TextStructureParser {
             if (state.unmatchedHeadings.size() < 50) {
                 state.unmatchedHeadings.add(trimmed);
             }
+            return;
+        }
+        if (state.lineSplits()) {
+            state.flush();
+            state.append(trimmed);
             return;
         }
         if (state.indentSplits() && startsWithIndent(raw)) {
@@ -416,6 +422,15 @@ public class TextStructureParser {
         private boolean indentSplits() {
             String mode = profile.paragraph();
             return "indent".equals(mode) || "blank_or_indent".equals(mode);
+        }
+
+        /**
+         * 非空正文行各成一段，不要求 tab、空行或全角缩进。
+         *
+         * @return 按行切段返回 true
+         */
+        private boolean lineSplits() {
+            return "line".equals(profile.paragraph());
         }
 
         private void append(String text) {

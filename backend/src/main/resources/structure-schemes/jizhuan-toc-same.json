@@ -16,7 +16,7 @@
     }
   ],
   "alignment": "title_has_volume",
-  "paragraph": "blank_or_indent",
+  "paragraph": "line",
   "neighbor": {
     "noCrossJuan": true,
     "noCrossNian": false
