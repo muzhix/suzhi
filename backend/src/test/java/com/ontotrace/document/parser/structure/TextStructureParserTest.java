@@ -248,6 +248,45 @@ class TextStructureParserTest {
     }
 
     /**
+     * 年标题允许多一个「年」，以及帝号、卷次切分、年号粘在一行。
+     */
+    @Test
+    void biannianMatchesExtraNianAndGluedEmperorYear() {
+        StructureProfile profile = registry.require("biannian-juan-ji-nian");
+        TextStructureParser.ParseResult result = parser.parse(read("biannian-glued-year.txt"), profile);
+        assertTrue(result.acceptable(), result.summary());
+        List<String> years = List.of(
+                "威烈王十五年年",
+                "世宗孝武皇帝上之上建元元年",
+                "世宗孝武皇帝上之上建元二年",
+                "世宗孝武皇帝上之上建元三年",
+                "世宗孝武皇帝上之上建元四年",
+                "世宗孝武皇帝上之上建元五年",
+                "世宗孝武皇帝上之上建元六年",
+                "世宗孝武皇帝上之上元光元年",
+                "世宗孝武皇帝上之下元光二年",
+                "世宗孝武皇帝中元朔元年");
+        for (String year : years) {
+            assertTrue(
+                    result.unmatchedHeadings().stream().noneMatch(year::equals),
+                    () -> "未识别 " + year + " " + result.unmatchedHeadings());
+        }
+        assertEquals(1, count(result, "卷第一/周纪一/威烈王十五年年"));
+        assertEquals("三晋灭智伯。", result.units().stream()
+                .filter(unit -> "卷第一/周纪一/威烈王十五年年".equals(unit.path()))
+                .map(TextStructureParser.Unit::text)
+                .findFirst()
+                .orElseThrow());
+        assertEquals(1, count(result, "卷第十七/汉纪九/世宗孝武皇帝上之上建元元年"));
+        assertEquals(1, count(result, "卷第十七/汉纪九/世宗孝武皇帝上之上元光元年"));
+        assertEquals(1, count(result, "卷第十七/汉纪九/世宗孝武皇帝上之下元光二年"));
+        assertEquals(1, count(result, "卷第十七/汉纪九/世宗孝武皇帝中元朔元年"));
+        assertEquals(1, count(result, "卷第一/周纪一/威烈王二十三年"));
+        assertTrue(result.unmatchedHeadings().isEmpty(), () -> result.unmatchedHeadings().toString());
+        assertFalse(profile.name().contains("通鉴"));
+    }
+
+    /**
      * 识别不到标题时不得当作可确认结果，也不生成 pN。
      */
     @Test
