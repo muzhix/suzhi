@@ -56,6 +56,9 @@ class TextStructureParserFullBookTest {
         if (result.headingCount() == 0) {
             throw new AssertionError(schemeId + " 没有识别到标题: " + book.get());
         }
+        if (result.units().stream().anyMatch(unit -> "文前".equals(unit.path()))) {
+            throw new AssertionError(schemeId + " 目录树出现文前");
+        }
         if ("jizhuan-toc-divergent".equals(schemeId)) {
             boolean juanEr = result.units().stream()
                     .anyMatch(unit -> "卷二 本纪第二 太宗上".equals(unit.path()));
@@ -64,9 +67,6 @@ class TextStructureParserFullBookTest {
             }
             if (result.units().stream().anyMatch(unit -> unit.path().contains("/"))) {
                 throw new AssertionError(schemeId + " path 含多层 /");
-            }
-            if (result.units().stream().anyMatch(unit -> "文前".equals(unit.path()))) {
-                throw new AssertionError(schemeId + " 目录树出现文前");
             }
             if (!result.unmatchedVolumes().isEmpty()) {
                 throw new AssertionError(schemeId + " 未对照卷 " + result.unmatchedVolumes());
@@ -84,9 +84,6 @@ class TextStructureParserFullBookTest {
         if ("jizhuan-toc-same".equals(schemeId)) {
             if (result.units().stream().anyMatch(unit -> unit.path().contains("/"))) {
                 throw new AssertionError(schemeId + " path 含多层 /");
-            }
-            if (result.units().stream().anyMatch(unit -> "文前".equals(unit.path()))) {
-                throw new AssertionError(schemeId + " 目录树出现文前");
             }
             if (result.units().stream().anyMatch(unit -> unit.path().equals(unit.text()))) {
                 throw new AssertionError(schemeId + " 卷标题进了 unit");

@@ -153,7 +153,7 @@ public class TextStructureParser {
     }
 
     /**
-     * 正文起点。目录同形从第二份卷题起算；目录异形跳过目录结束后的「附录」等残行，从第一条正文标题起算，避免默认 path「文前」。
+     * 正文起点。目录同形从第二份卷题起算；目录异形跳过目录结束后的「附录」等残行；编年体无目录时跳过书名等文前残行。都从第一条正文标题起算，避免默认 path「文前」。
      *
      * @param lines 全文行
      * @param profile 结构方案
@@ -180,14 +180,17 @@ public class TextStructureParser {
         if (profile.toc() != null && profile.toc().lookupVolume() && !toc.lines.isEmpty()) {
             return skipToFirstHeading(lines, start, headings);
         }
+        if (profile.toc() == null || !profile.toc().enabled()) {
+            return skipToFirstHeading(lines, start, headings);
+        }
         return start;
     }
 
     /**
-     * 从目录结束处扫到第一条正文标题。中间的「附录」等短标签不进 unit。
+     * 从 {@code start} 扫到第一条正文标题。中间的书名、「附录」等残行不进 unit。
      *
      * @param lines 全文行
-     * @param start 目录结束下标
+     * @param start 目录结束下标，无目录时为 0
      * @param headings 标题规则
      * @return 第一条标题的下标；若没有标题则仍从 {@code start} 起，以免整书被丢掉
      */
