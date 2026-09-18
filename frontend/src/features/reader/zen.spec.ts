@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   ensureNotoSerifCjk,
   ensureZenFont,
+  KINGHWA_OLD_SONG_CSS,
   loadZenPrefs,
   LXGW_WENKAI_MONO_CSS,
   NOTO_SERIF_CJK_CSS,
@@ -11,18 +12,24 @@ import {
   parseZenWide,
   readSessionUserId,
   saveZenPrefs,
+  ST_DONGGUAN_CSS,
   zenBodyFontSize,
+  zenParagraphLabel,
   zenPrefsStorageKey,
   zenReadingLocation,
+  zenThemeVars,
   ZEN_PREFS_DEFAULT,
   ZEN_SIZE_DEFAULT,
   ZEN_SIZE_PRESETS,
+  ZEN_THEME_OPTIONS,
 } from './zen'
 
 describe('zen reading helpers', () => {
   afterEach(() => {
     document.getElementById('noto-serif-cjk-font-css')?.remove()
     document.getElementById('lxgw-wenkai-mono-font-css')?.remove()
+    document.getElementById('kinghwa-oldsong-font-css')?.remove()
+    document.getElementById('stdongguanti-font-css')?.remove()
     localStorage.clear()
     sessionStorage.clear()
   })
@@ -45,10 +52,26 @@ describe('zen reading helpers', () => {
     expect(parseZenWide(true)).toBe(true)
     expect(parseZenFont('kai')).toBe('kai')
     expect(parseZenFont('hei')).toBe('hei')
-    expect(parseZenFont('kinghwa')).toBe('noto')
+    expect(parseZenFont('kinghwa')).toBe('kinghwa')
+    expect(parseZenFont('dongguan')).toBe('dongguan')
+    expect(parseZenFont('comic')).toBe('noto')
     expect(parseZenTheme('eye')).toBe('eye')
     expect(parseZenTheme('night')).toBe('night')
     expect(parseZenTheme('sepia')).toBe('normal')
+  })
+
+  it('labels each paragraph as current / total', () => {
+    expect(zenParagraphLabel(0, 29)).toBe('1 / 29')
+    expect(zenParagraphLabel(28, 29)).toBe('29 / 29')
+  })
+
+  it('keeps night darker than paper and lighter than #10141b', () => {
+    const night = ZEN_THEME_OPTIONS.find((item) => item.id === 'night')
+    expect(night?.bg).toBe('#1c2430')
+    const vars = zenThemeVars(night!)
+    expect(vars['--background']).toBe('#1c2430')
+    expect(vars['--popover']).toBe('#1c2430')
+    expect(vars['--foreground']).toBe('#e8e6e1')
   })
 
   it('builds the shell-less zen path without prefs in the query', () => {
@@ -62,19 +85,29 @@ describe('zen reading helpers', () => {
     })
   })
 
-  it('injects song and kai stylesheets once and skips hei', () => {
+  it('injects song kai kinghwa dongguan once and skips hei', () => {
     ensureNotoSerifCjk()
     ensureZenFont('noto')
     ensureZenFont('kai')
     ensureZenFont('kai')
+    ensureZenFont('kinghwa')
+    ensureZenFont('kinghwa')
+    ensureZenFont('dongguan')
     ensureZenFont('hei')
     expect(document.querySelectorAll('#noto-serif-cjk-font-css')).toHaveLength(1)
     expect(document.querySelectorAll('#lxgw-wenkai-mono-font-css')).toHaveLength(1)
+    expect(document.querySelectorAll('#kinghwa-oldsong-font-css')).toHaveLength(1)
+    expect(document.querySelectorAll('#stdongguanti-font-css')).toHaveLength(1)
     const noto = document.getElementById('noto-serif-cjk-font-css') as HTMLLinkElement
     const kai = document.getElementById('lxgw-wenkai-mono-font-css') as HTMLLinkElement
+    const kinghwa = document.getElementById('kinghwa-oldsong-font-css') as HTMLLinkElement
+    const dongguan = document.getElementById('stdongguanti-font-css') as HTMLLinkElement
     expect(noto.getAttribute('href')).toBe(NOTO_SERIF_CJK_CSS)
     expect(kai.getAttribute('href')).toBe(LXGW_WENKAI_MONO_CSS)
-    expect(kai.crossOrigin).toBe('anonymous')
+    expect(kinghwa.getAttribute('href')).toBe(KINGHWA_OLD_SONG_CSS)
+    expect(dongguan.getAttribute('href')).toBe(ST_DONGGUAN_CSS)
+    expect(kinghwa.crossOrigin).toBe('anonymous')
+    expect(dongguan.crossOrigin).toBe('anonymous')
   })
 
   it('stores zen prefs per user and refuses anonymous writes', () => {
@@ -84,9 +117,12 @@ describe('zen reading helpers', () => {
 
     saveZenPrefs('u1', { size: 20, wide: true, font: 'kai', theme: 'night' })
     saveZenPrefs('u2', { size: 14, wide: false, font: 'hei', theme: 'eye' })
+    saveZenPrefs('u3', { size: 16, wide: true, font: 'kinghwa', theme: 'normal' })
     expect(loadZenPrefs('u1')).toEqual({ size: 20, wide: true, font: 'kai', theme: 'night' })
     expect(loadZenPrefs('u2')).toEqual({ size: 14, wide: false, font: 'hei', theme: 'eye' })
+    expect(loadZenPrefs('u3')).toEqual({ size: 16, wide: true, font: 'kinghwa', theme: 'normal' })
     expect(localStorage.getItem(zenPrefsStorageKey('u1'))).toContain('"font":"kai"')
+    expect(localStorage.getItem(zenPrefsStorageKey('u3'))).toContain('"font":"kinghwa"')
   })
 
   it('reads the logged-in user id from session storage', () => {
