@@ -29,6 +29,10 @@ public class TextUnit implements Persistable<UUID> {
     private String path;
     private String displayText;
     private Integer pageNo;
+    /** 公元纪年，阿拉伯数字；目录附注，不进 path。 */
+    private Integer ceYear;
+    /** 干支；目录附注，不进 path。 */
+    private String ganzhi;
     @Transient
     @Builder.Default
     private boolean isNew = true;

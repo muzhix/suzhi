@@ -17,15 +17,42 @@
     {
       "id": "ji",
       "pattern": "^【([^】]*纪[^】]*)】.*$",
+      "level": 1,
+      "label": "$1",
+      "nodeType": "ji",
+      "foldIntoParent": true
+    },
+    {
+      "id": "di",
+      "pattern": "^(.+?皇帝(?:[上中下]之[上中下]|[上中下]|[甲乙丙丁戊己庚辛壬癸]))",
       "level": 2,
       "label": "$1",
-      "nodeType": "ji"
+      "nodeType": "di",
+      "prefix": true
+    },
+    {
+      "id": "nian-ce-dot",
+      "pattern": "^◎\\s*(.+?)([甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥])[，,]\\s*公元([〇零一二三四五六七八九0-9]+)年。?$",
+      "level": 3,
+      "label": "$1",
+      "nodeType": "nian",
+      "ganzhiGroup": 2,
+      "ceYearGroup": 3
+    },
+    {
+      "id": "nian-ce-paren",
+      "pattern": "^(.+?)（([甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥])[，,]\\s*公元([〇零一二三四五六七八九0-9]+)年）。?$",
+      "level": 3,
+      "label": "$1",
+      "nodeType": "nian",
+      "ganzhiGroup": 2,
+      "ceYearGroup": 3
     },
     {
       "id": "nian",
       "pattern": "^([\\u4e00-\\u9fff]{0,16}?)(元年|[一二三四五六七八九十百]+年)年?$",
       "level": 3,
-      "label": "$0",
+      "label": "$1$2",
       "nodeType": "nian"
     },
     {

@@ -61,10 +61,22 @@ public class TextStructureParser {
     /**
      * 一段正文。
      *
-     * @param path 结构路径
+     * @param path 结构路径，不含公元、干支
      * @param text 展示文本
+     * @param ceYear 公元纪年，阿拉伯数字；没有则为 null
+     * @param ganzhi 干支；没有则为 null
      */
-    public record Unit(String path, String text) {}
+    public record Unit(String path, String text, Integer ceYear, String ganzhi) {
+        /**
+         * 无年附注的段落。
+         *
+         * @param path 结构路径
+         * @param text 展示文本
+         */
+        public Unit(String path, String text) {
+            this(path, text, null, null);
+        }
+    }
 
     /**
      * 按方案解析全文。识别过差时 {@code acceptable} 为 false，调用方不得退化成 {@code pN}。
@@ -90,7 +102,9 @@ public class TextStructureParser {
         List<String> unmatchedVolumes = profile.toc() != null && profile.toc().lookupVolume()
                 ? unmatchedVolumes(toc, state.usedTocKeys)
                 : List.of();
-        List<String> paths = state.units.stream().map(Unit::path).toList();
+        List<OutlineTrees.PathNote> notes = state.units.stream()
+                .map(unit -> new OutlineTrees.PathNote(unit.path(), unit.ceYear(), unit.ganzhi()))
+                .toList();
         boolean acceptable = acceptable(profile, state, toc, unmatchedVolumes);
         List<String> warnings = new ArrayList<>(state.warnings);
         if (!acceptable) {
@@ -107,7 +121,7 @@ public class TextStructureParser {
                 acceptable);
         return new ParseResult(
                 List.copyOf(state.units),
-                OutlineTrees.fromPaths(paths),
+                OutlineTrees.fromPathNotes(notes),
                 List.copyOf(state.unmatchedHeadings),
                 unmatchedVolumes,
                 state.headingCount,
@@ -130,7 +144,7 @@ public class TextStructureParser {
         CompiledHeading heading = matchHeading(trimmed, headings);
         if (heading != null) {
             state.flush();
-            state.applyHeading(heading);
+            applyHeadingLine(heading, headings, state);
             return;
         }
         if (looksUnmatchedHeading(trimmed)) {
@@ -292,11 +306,66 @@ public class TextStructureParser {
         return compiled;
     }
 
+    /**
+     * 先压本行标题；若是帝号前缀，再把余下当年号标题压栈。
+     *
+     * @param heading 已匹配的标题
+     * @param headings 全部规则
+     * @param state 解析状态
+     */
+    private static void applyHeadingLine(CompiledHeading heading, List<CompiledHeading> headings, State state) {
+        state.applyHeading(heading);
+        if (heading.remainder == null || heading.remainder.isBlank()) {
+            return;
+        }
+        CompiledHeading rest = matchFullHeading(heading.remainder, headings);
+        if (rest != null) {
+            state.applyHeading(rest);
+            return;
+        }
+        if (looksUnmatchedHeading(heading.remainder) && state.unmatchedHeadings.size() < 50) {
+            state.unmatchedHeadings.add(heading.remainder);
+        }
+    }
+
     private static CompiledHeading matchHeading(String line, List<CompiledHeading> headings) {
+        if (line == null || line.isBlank()) {
+            return null;
+        }
         for (CompiledHeading heading : headings) {
             Matcher matcher = heading.pattern.matcher(line);
+            if (heading.rule.matchPrefix()) {
+                if (!matcher.lookingAt() || matcher.end() == 0) {
+                    continue;
+                }
+                String rest = trimLine(line.substring(matcher.end()));
+                if (!rest.isEmpty() && matchFullHeading(rest, headings) == null) {
+                    continue;
+                }
+                return heading.bound(matcher, rest);
+            }
             if (matcher.matches()) {
-                return heading.bound(matcher);
+                return heading.bound(matcher, "");
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 整行匹配，不走前缀规则。用于帝号切开后的年号余下。
+     *
+     * @param line 余下行
+     * @param headings 标题规则
+     * @return 命中的规则；没有则为 null
+     */
+    private static CompiledHeading matchFullHeading(String line, List<CompiledHeading> headings) {
+        for (CompiledHeading heading : headings) {
+            if (heading.rule.matchPrefix()) {
+                continue;
+            }
+            Matcher matcher = heading.pattern.matcher(line);
+            if (matcher.matches()) {
+                return heading.bound(matcher, "");
             }
         }
         return null;
@@ -365,6 +434,56 @@ public class TextStructureParser {
         return out.replace("$0", matcher.group()).trim();
     }
 
+    /**
+     * 公元用逐位中文数字，如「三六」为 36、「一九四」为 194，不是「三十六」那种进位写法。
+     *
+     * @param raw 中文或阿拉伯数字串
+     * @return 阿拉伯数字；无法识别则为 null
+     */
+    static Integer chinesePositionalYear(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        int n = 0;
+        for (int i = 0; i < raw.length(); i++) {
+            int digit = switch (raw.charAt(i)) {
+                case '〇', '零', '0' -> 0;
+                case '一', '1' -> 1;
+                case '二', '2' -> 2;
+                case '三', '3' -> 3;
+                case '四', '4' -> 4;
+                case '五', '5' -> 5;
+                case '六', '6' -> 6;
+                case '七', '7' -> 7;
+                case '八', '8' -> 8;
+                case '九', '9' -> 9;
+                default -> -1;
+            };
+            if (digit < 0) {
+                return null;
+            }
+            n = n * 10 + digit;
+        }
+        return n;
+    }
+
+    /**
+     * 年号缺「年」时补上，如「建武十二」→「建武十二年」。
+     *
+     * @param label 年标签
+     * @return 以「年」结尾的标签
+     */
+    static String ensureYearSuffix(String label) {
+        if (label == null || label.isBlank() || label.endsWith("年")) {
+            return label;
+        }
+        char last = label.charAt(label.length() - 1);
+        if ("一二三四五六七八九十百".indexOf(last) >= 0) {
+            return label + "年";
+        }
+        return label;
+    }
+
     private static final class Toc {
         private final Map<String, String> volumeByKey = new LinkedHashMap<>();
         private final List<String> lines = new ArrayList<>();
@@ -376,15 +495,17 @@ public class TextStructureParser {
         private final StructureProfile.HeadingRule rule;
         private final Pattern pattern;
         private Matcher matcher;
+        private String remainder = "";
 
         private CompiledHeading(StructureProfile.HeadingRule rule, Pattern pattern) {
             this.rule = rule;
             this.pattern = pattern;
         }
 
-        private CompiledHeading bound(Matcher matcher) {
+        private CompiledHeading bound(Matcher matcher, String remainder) {
             CompiledHeading copy = new CompiledHeading(rule, pattern);
             copy.matcher = matcher;
+            copy.remainder = remainder == null ? "" : remainder;
             return copy;
         }
     }
@@ -410,6 +531,8 @@ public class TextStructureParser {
         private final Set<String> usedTocKeys = new LinkedHashSet<>();
         private String currentPath = "文前";
         private String pendingWang;
+        private Integer currentCeYear;
+        private String currentGanzhi;
         private int headingCount;
 
         private State(StructureProfile profile, Toc toc) {
@@ -453,7 +576,7 @@ public class TextStructureParser {
                 return;
             }
             String path = currentPath == null || currentPath.isBlank() ? "文前" : currentPath;
-            units.add(new Unit(path, text));
+            units.add(new Unit(path, text, currentCeYear, currentGanzhi));
         }
 
         private void applyHeading(CompiledHeading heading) {
@@ -473,10 +596,28 @@ public class TextStructureParser {
                 }
             }
             String label = interpolate(rule.label() == null ? "$0" : rule.label(), matcher, tocVolume, tocKey);
-            if (pendingWang != null && "nian".equals(rule.id()) && (label.equals("元年") || label.startsWith("元年"))) {
+            boolean yearHeading = "nian".equals(rule.nodeType());
+            if (pendingWang != null && yearHeading && !rule.mergeYear() && (label.equals("元年") || label.startsWith("元年"))) {
                 label = pendingWang + label;
             }
             pendingWang = rule.mergeYear() ? label : null;
+            if (yearHeading && !rule.mergeYear()) {
+                label = ensureYearSuffix(label);
+            }
+            currentCeYear = null;
+            currentGanzhi = null;
+            if (yearHeading && !rule.mergeYear()) {
+                if (rule.ceYearGroup() != null && matcher.groupCount() >= rule.ceYearGroup()) {
+                    currentCeYear = chinesePositionalYear(matcher.group(rule.ceYearGroup()));
+                }
+                if (rule.ganzhiGroup() != null && matcher.groupCount() >= rule.ganzhiGroup()) {
+                    String ganzhi = matcher.group(rule.ganzhiGroup());
+                    currentGanzhi = ganzhi == null || ganzhi.isBlank() ? null : ganzhi;
+                }
+                if (currentCeYear != null || currentGanzhi != null) {
+                    log.debug("nian note path-label={} ceYear={} ganzhi={}", label, currentCeYear, currentGanzhi);
+                }
+            }
             if (rule.replacesPath()) {
                 List<String> segs = new ArrayList<>();
                 for (String template : rule.pathTemplate()) {
@@ -487,17 +628,19 @@ public class TextStructureParser {
                 }
                 currentPath = String.join("/", segs);
                 stack.clear();
+            } else if (rule.foldsIntoParent() && !stack.isEmpty()) {
+                Frame parent = stack.removeLast();
+                String folded = parent.label + "（" + label + "）";
+                stack.addLast(new Frame(parent.level, folded));
+                log.debug("fold heading {} into {}", label, folded);
+                rebuildPath();
             } else {
                 int level = rule.stackLevel();
                 while (!stack.isEmpty() && stack.peekLast().level >= level) {
                     stack.removeLast();
                 }
                 stack.addLast(new Frame(level, label));
-                List<String> segs = new ArrayList<>();
-                for (Frame frame : stack) {
-                    segs.add(frame.label);
-                }
-                currentPath = String.join("/", segs);
+                rebuildPath();
             }
             if (currentPath.isBlank()) {
                 currentPath = "文前";
@@ -505,6 +648,14 @@ public class TextStructureParser {
             if (tocKey != null) {
                 log.debug("heading path={} tocVolume={} tocKey={}", currentPath, tocVolume, tocKey);
             }
+        }
+
+        private void rebuildPath() {
+            List<String> segs = new ArrayList<>();
+            for (Frame frame : stack) {
+                segs.add(frame.label);
+            }
+            currentPath = String.join("/", segs);
         }
     }
 }

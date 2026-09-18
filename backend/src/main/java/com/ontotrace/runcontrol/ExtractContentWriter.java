@@ -84,6 +84,8 @@ public class ExtractContentWriter {
                     .path(unit.path())
                     .displayText(unit.text())
                     .pageNo(null)
+                    .ceYear(unit.ceYear())
+                    .ganzhi(unit.ganzhi())
                     .build());
             seq++;
         }

@@ -67,13 +67,17 @@ public record StructureProfile(
      * 一条标题规则。
      *
      * @param id 规则标识，如 juan、pian、ji、nian、wang
-     * @param pattern 整行正则
-     * @param level 栈深度，有 pathTemplate 时忽略
+     * @param pattern 整行正则；{@code prefix} 为 true 时按前缀匹配
+     * @param level 栈深度，有 pathTemplate 或 foldIntoParent 时忽略
      * @param label 节点标签模板，如 {@code $1}
      * @param pathTemplate 由本行一次生成整条 path 的模板；空则按 level 压栈。多项用 {@code /} 连接；目录异形、目录同形用一项拼成一层字符串
      * @param tocKeyTemplate 反查目录用的键，如 {@code $1$2}；填入模板的 {@code {tocKey}}
      * @param nodeType 节点类型，如 pian、table、nian
      * @param mergeNextYear 王名行并入随后的元年标题
+     * @param prefix 为 true 时 {@code lookingAt} 匹配前缀，余下再当标题
+     * @param foldIntoParent 为 true 时把本标签折进栈顶，如卷名后接纪名
+     * @param ceYearGroup 公元中文数字所在分组号，从 1 起
+     * @param ganzhiGroup 干支所在分组号，从 1 起
      */
     public record HeadingRule(
             String id,
@@ -83,7 +87,11 @@ public record StructureProfile(
             List<String> pathTemplate,
             String tocKeyTemplate,
             String nodeType,
-            Boolean mergeNextYear) {
+            Boolean mergeNextYear,
+            Boolean prefix,
+            Boolean foldIntoParent,
+            Integer ceYearGroup,
+            Integer ganzhiGroup) {
         /**
          * 栈深度，缺省为 1。
          *
@@ -109,6 +117,24 @@ public record StructureProfile(
          */
         public boolean replacesPath() {
             return pathTemplate != null && !pathTemplate.isEmpty();
+        }
+
+        /**
+         * 是否按前缀匹配，余下再识别。
+         *
+         * @return 前缀匹配返回 true
+         */
+        public boolean matchPrefix() {
+            return Boolean.TRUE.equals(prefix);
+        }
+
+        /**
+         * 是否把本层标签折进父节点。
+         *
+         * @return 需要折叠返回 true
+         */
+        public boolean foldsIntoParent() {
+            return Boolean.TRUE.equals(foldIntoParent);
         }
     }
 

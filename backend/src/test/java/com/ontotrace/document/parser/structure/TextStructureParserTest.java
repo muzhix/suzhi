@@ -235,12 +235,13 @@ class TextStructureParserTest {
         TextStructureParser.ParseResult result = parser.parse(read("biannian-juan-ji-nian.txt"), profile);
         assertTrue(result.acceptable(), result.summary());
         assertEquals("blank_or_indent", profile.paragraph());
-        assertEquals(2, count(result, "卷第一/周纪一/威烈王二十三年"));
-        assertEquals(1, count(result, "卷第一/周纪一/威烈王二十四年"));
-        assertEquals(1, count(result, "卷第一/周纪一/安王元年"));
-        assertEquals(1, count(result, "卷第二/秦纪一/昭襄王五十二年"));
-        assertTrue(result.units().stream().noneMatch(unit -> "卷第一/周纪一/威烈王二十三年".equals(unit.path()) && unit.text().contains("初命") && unit.text().contains("臣光曰")));
-        assertEquals("卷第一", result.outline().getFirst().path());
+        assertEquals(2, count(result, "卷第一（周纪一）/威烈王二十三年"));
+        assertEquals(1, count(result, "卷第一（周纪一）/威烈王二十四年"));
+        assertEquals(1, count(result, "卷第一（周纪一）/安王元年"));
+        assertEquals(1, count(result, "卷第二（秦纪一）/昭襄王五十二年"));
+        assertTrue(result.units().stream().noneMatch(unit -> "卷第一（周纪一）/威烈王二十三年".equals(unit.path()) && unit.text().contains("初命") && unit.text().contains("臣光曰")));
+        assertEquals("卷第一（周纪一）", result.outline().getFirst().path());
+        assertTrue(result.outline().getFirst().children().stream().noneMatch(node -> "周纪一".equals(node.label())));
         assertTrue(result.outline().stream().noneMatch(node -> "文前".equals(node.path())));
         assertTrue(result.units().stream().noneMatch(unit -> "文前".equals(unit.path()) || "资治通鉴".equals(unit.text())));
         assertFalse(profile.name().contains("通鉴"));
@@ -248,7 +249,7 @@ class TextStructureParserTest {
     }
 
     /**
-     * 年标题允许多一个「年」，以及帝号、卷次切分、年号粘在一行。
+     * 卷与纪合成一级；帝号加切分是二级；年号加年是三级。粘行要拆开。带公元的年标题写入节点附注，不进 path。
      */
     @Test
     void biannianMatchesExtraNianAndGluedEmperorYear() {
@@ -265,25 +266,64 @@ class TextStructureParserTest {
                 "世宗孝武皇帝上之上建元六年",
                 "世宗孝武皇帝上之上元光元年",
                 "世宗孝武皇帝上之下元光二年",
-                "世宗孝武皇帝中元朔元年");
+                "世宗孝武皇帝中元朔元年",
+                "◎建武十二丙申，公元三六年",
+                "孝献皇帝丙兴平元年（甲戌，公元一九四年）");
         for (String year : years) {
             assertTrue(
                     result.unmatchedHeadings().stream().noneMatch(year::equals),
                     () -> "未识别 " + year + " " + result.unmatchedHeadings());
         }
-        assertEquals(1, count(result, "卷第一/周纪一/威烈王十五年年"));
+        assertEquals(1, count(result, "卷第一（周纪一）/威烈王十五年"));
         assertEquals("三晋灭智伯。", result.units().stream()
-                .filter(unit -> "卷第一/周纪一/威烈王十五年年".equals(unit.path()))
+                .filter(unit -> "卷第一（周纪一）/威烈王十五年".equals(unit.path()))
                 .map(TextStructureParser.Unit::text)
                 .findFirst()
                 .orElseThrow());
-        assertEquals(1, count(result, "卷第十七/汉纪九/世宗孝武皇帝上之上建元元年"));
-        assertEquals(1, count(result, "卷第十七/汉纪九/世宗孝武皇帝上之上元光元年"));
-        assertEquals(1, count(result, "卷第十七/汉纪九/世宗孝武皇帝上之下元光二年"));
-        assertEquals(1, count(result, "卷第十七/汉纪九/世宗孝武皇帝中元朔元年"));
-        assertEquals(1, count(result, "卷第一/周纪一/威烈王二十三年"));
+        assertEquals(1, count(result, "卷第十七（汉纪九）/世宗孝武皇帝上之上/建元元年"));
+        assertEquals(1, count(result, "卷第十七（汉纪九）/世宗孝武皇帝上之上/元光元年"));
+        assertEquals(1, count(result, "卷第十七（汉纪九）/世宗孝武皇帝上之下/元光二年"));
+        assertEquals(1, count(result, "卷第十七（汉纪九）/世宗孝武皇帝上之下/元光三年"));
+        assertEquals(1, count(result, "卷第十七（汉纪九）/世宗孝武皇帝上之下/元光四年"));
+        assertEquals(1, count(result, "卷第十七（汉纪九）/世宗孝武皇帝中/元朔元年"));
+        assertEquals(1, count(result, "卷第一（周纪一）/威烈王二十三年"));
+        assertEquals(1, count(result, "卷第十八（汉纪十）/世宗孝武皇帝上之下/元光二年"));
+        assertEquals(1, count(result, "卷第十八（汉纪十）/世宗孝武皇帝上之下/元光三年"));
+        assertEquals(1, count(result, "卷第十八（汉纪十）/世宗孝武皇帝上之下/元光四年"));
+        OutlineTrees.OutlineNode juan18 = findNode(result.outline(), "卷第十八（汉纪十）");
+        assertEquals("卷第十八（汉纪十）", juan18.path());
+        assertEquals(1, juan18.children().size());
+        assertEquals("世宗孝武皇帝上之下", juan18.children().getFirst().label());
+        assertEquals(
+                List.of("元光二年", "元光三年", "元光四年"),
+                juan18.children().getFirst().children().stream().map(OutlineTrees.OutlineNode::label).toList());
+        assertTrue(result.units().stream().noneMatch(unit -> unit.path().contains("公元")));
+        assertTrue(result.units().stream().noneMatch(unit -> unit.path().contains("丙申") || unit.path().contains("甲戌")));
+        assertEquals(1, count(result, "卷第四十三（汉纪三十五）/世祖光武皇帝中/建武十二年"));
+        TextStructureParser.Unit jianwu = result.units().stream()
+                .filter(unit -> "卷第四十三（汉纪三十五）/世祖光武皇帝中/建武十二年".equals(unit.path()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(36, jianwu.ceYear());
+        assertEquals("丙申", jianwu.ganzhi());
+        OutlineTrees.OutlineNode jianwuNode = findNode(result.outline(), "卷第四十三（汉纪三十五）/世祖光武皇帝中/建武十二年");
+        assertEquals(36, jianwuNode.ceYear());
+        assertEquals("丙申", jianwuNode.ganzhi());
+        assertEquals(1, count(result, "卷第六十一（汉纪五十三）/孝献皇帝丙/兴平元年"));
+        TextStructureParser.Unit xingping = result.units().stream()
+                .filter(unit -> "卷第六十一（汉纪五十三）/孝献皇帝丙/兴平元年".equals(unit.path()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(194, xingping.ceYear());
+        assertEquals("甲戌", xingping.ganzhi());
+        OutlineTrees.OutlineNode xingpingNode = findNode(result.outline(), "卷第六十一（汉纪五十三）/孝献皇帝丙/兴平元年");
+        assertEquals(194, xingpingNode.ceYear());
+        assertEquals("甲戌", xingpingNode.ganzhi());
+        assertEquals("兴平元年", xingpingNode.label());
         assertTrue(result.unmatchedHeadings().isEmpty(), () -> result.unmatchedHeadings().toString());
         assertFalse(profile.name().contains("通鉴"));
+        assertEquals(36, TextStructureParser.chinesePositionalYear("三六"));
+        assertEquals(194, TextStructureParser.chinesePositionalYear("一九四"));
     }
 
     /**
@@ -303,6 +343,27 @@ class TextStructureParserTest {
 
     private static long count(TextStructureParser.ParseResult result, String path) {
         return result.units().stream().filter(unit -> path.equals(unit.path())).count();
+    }
+
+    private static OutlineTrees.OutlineNode findNode(List<OutlineTrees.OutlineNode> nodes, String path) {
+        OutlineTrees.OutlineNode found = findNodeOrNull(nodes, path);
+        if (found == null) {
+            throw new AssertionError("没有节点 " + path);
+        }
+        return found;
+    }
+
+    private static OutlineTrees.OutlineNode findNodeOrNull(List<OutlineTrees.OutlineNode> nodes, String path) {
+        for (OutlineTrees.OutlineNode node : nodes) {
+            if (path.equals(node.path())) {
+                return node;
+            }
+            OutlineTrees.OutlineNode nested = findNodeOrNull(node.children(), path);
+            if (nested != null) {
+                return nested;
+            }
+        }
+        return null;
     }
 
     private static String read(String name) {
