@@ -14,10 +14,12 @@ import {
   saveZenPrefs,
   ST_DONGGUAN_CSS,
   zenBodyFontSize,
+  zenChromeStayOpen,
   zenParagraphLabel,
   zenPrefsStorageKey,
   zenReadingLocation,
   zenThemeVars,
+  ZEN_CHROME_HOTZONE_PX,
   ZEN_PREFS_DEFAULT,
   ZEN_SIZE_DEFAULT,
   ZEN_SIZE_PRESETS,
@@ -63,6 +65,15 @@ describe('zen reading helpers', () => {
   it('labels each paragraph as current / total', () => {
     expect(zenParagraphLabel(0, 29)).toBe('1 / 29')
     expect(zenParagraphLabel(28, 29)).toBe('29 / 29')
+  })
+
+  it('keeps zen chrome while pointer is in the top hotzone', () => {
+    expect(zenChromeStayOpen(false, false, 10)).toBe(true)
+    expect(zenChromeStayOpen(false, false, ZEN_CHROME_HOTZONE_PX)).toBe(true)
+    expect(zenChromeStayOpen(false, false, ZEN_CHROME_HOTZONE_PX + 1)).toBe(false)
+    expect(zenChromeStayOpen(true, false, 200)).toBe(true)
+    expect(zenChromeStayOpen(false, true, 200)).toBe(true)
+    expect(zenChromeStayOpen(false, false, null)).toBe(false)
   })
 
   it('keeps night darker than paper and lighter than #10141b', () => {
