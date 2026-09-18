@@ -162,6 +162,25 @@ export function zenParagraphLabel(index: number, total: number): string {
   return `${index + 1} / ${total}`
 }
 
+/** 指针在窗口顶部这么多像素内时显示顶栏。 */
+export const ZEN_CHROME_HOTZONE_PX = 48
+/** 指针离开热区后延迟隐藏，避免闪。 */
+export const ZEN_CHROME_HIDE_MS = 480
+
+/**
+ * 顶栏是否应保持显示。阅读配置弹层打开、指针在顶栏上、或落在顶部热区时保持。
+ *
+ * @param overChrome 指针在顶栏上
+ * @param prefsOpen 阅读配置弹层打开
+ * @param clientY 指针相对视口的 Y；未知时传 null
+ */
+export function zenChromeStayOpen(overChrome: boolean, prefsOpen: boolean, clientY: number | null): boolean {
+  if (overChrome || prefsOpen) {
+    return true
+  }
+  return clientY != null && clientY <= ZEN_CHROME_HOTZONE_PX
+}
+
 /**
  * 背景模式。非法回落到正常。
  *

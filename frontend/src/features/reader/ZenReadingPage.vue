@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuery } from '@tanstack/vue-query'
 import { PanelLeftIcon, SettingsIcon, XIcon } from '@lucide/vue'
@@ -17,8 +17,11 @@ import {
   loadZenPrefs,
   readSessionUserId,
   saveZenPrefs,
+  zenChromeStayOpen,
   zenParagraphLabel,
   zenThemeVars,
+  ZEN_CHROME_HIDE_MS,
+  ZEN_CHROME_HOTZONE_PX,
   ZEN_FONT_OPTIONS,
   ZEN_SIZE_MAX,
   ZEN_SIZE_MIN,
@@ -35,6 +38,11 @@ const selectedPath = computed(() => (typeof route.query.path === 'string' ? rout
 const userId = readSessionUserId()
 const prefs = reactive<ZenPrefs>(loadZenPrefs(userId))
 const outlineOpen = ref(false)
+const chromeOpen = ref(false)
+const overChrome = ref(false)
+const prefsOpen = ref(false)
+const pointerY = ref<number | null>(null)
+let chromeHideTimer: ReturnType<typeof setTimeout> | undefined
 const theme = computed(
   () => ZEN_THEME_OPTIONS.find((item) => item.id === prefs.theme) ?? ZEN_THEME_OPTIONS[0],
 )
@@ -114,6 +122,74 @@ watch(
   { deep: true, immediate: true },
 )
 
+function revealChrome() {
+  if (chromeHideTimer !== undefined) {
+    clearTimeout(chromeHideTimer)
+    chromeHideTimer = undefined
+  }
+  chromeOpen.value = true
+}
+
+function hideChromeSoon() {
+  if (!chromeOpen.value || zenChromeStayOpen(overChrome.value, prefsOpen.value, pointerY.value)) {
+    return
+  }
+  if (chromeHideTimer !== undefined) {
+    return
+  }
+  chromeHideTimer = setTimeout(() => {
+    chromeHideTimer = undefined
+    if (!zenChromeStayOpen(overChrome.value, prefsOpen.value, pointerY.value)) {
+      chromeOpen.value = false
+    }
+  }, ZEN_CHROME_HIDE_MS)
+}
+
+function onPagePointerMove(event: PointerEvent) {
+  pointerY.value = event.clientY
+  if (event.clientY <= ZEN_CHROME_HOTZONE_PX) {
+    revealChrome()
+    return
+  }
+  hideChromeSoon()
+}
+
+function onPagePointerLeave() {
+  pointerY.value = null
+  hideChromeSoon()
+}
+
+function onPrefsOpen(open: boolean) {
+  prefsOpen.value = open
+  if (open) {
+    revealChrome()
+    return
+  }
+  hideChromeSoon()
+}
+
+function onEsc(event: KeyboardEvent) {
+  if (event.key !== 'Escape') {
+    return
+  }
+  if (prefsOpen.value) {
+    return
+  }
+  event.stopPropagation()
+  revealChrome()
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onEsc)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onEsc)
+  if (chromeHideTimer !== undefined) {
+    clearTimeout(chromeHideTimer)
+  }
+})
+
 function selectPath(path: string) {
   outlineOpen.value = false
   replaceQuery(path)
@@ -139,21 +215,30 @@ function exitZen() {
 <template>
   <TooltipProvider>
     <div
-      class="zen-page flex h-dvh min-h-0 flex-col overflow-hidden"
+      class="zen-page relative flex h-dvh min-h-0 flex-col overflow-hidden"
       :class="prefs.theme === 'night' ? 'dark' : undefined"
       :style="shellStyle"
       :data-reader-font="prefs.font"
       :data-zen-theme="prefs.theme"
       :data-zen-wide="prefs.wide ? '1' : '0'"
+      :data-zen-chrome="chromeOpen ? '1' : '0'"
+      @pointermove="onPagePointerMove"
+      @pointerleave="onPagePointerLeave"
     >
-      <header class="flex shrink-0 items-center gap-2 px-3 py-2">
+      <header
+        class="zen-chrome absolute inset-x-0 top-0 z-20 flex items-center gap-2 px-3 py-2"
+        :data-open="chromeOpen ? '1' : '0'"
+        :inert="!chromeOpen"
+        @pointerenter="overChrome = true; revealChrome()"
+        @pointerleave="overChrome = false; hideChromeSoon()"
+      >
         <Button size="sm" type="button" variant="ghost" @click="exitZen">退出</Button>
         <Button class="md:hidden" size="sm" type="button" variant="ghost" @click="outlineOpen = !outlineOpen">
           <PanelLeftIcon />
           目录
         </Button>
         <div class="ml-auto">
-          <Popover>
+          <Popover @update:open="onPrefsOpen">
             <PopoverTrigger as-child>
               <Button size="icon-sm" type="button" variant="ghost" aria-label="阅读配置">
                 <SettingsIcon />
@@ -281,7 +366,7 @@ function exitZen() {
           </Popover>
         </div>
       </header>
-      <div class="flex min-h-0 flex-1">
+      <div class="flex min-h-0 flex-1" @pointerdown="hideChromeSoon">
         <aside
           class="zen-outline h-full min-h-0 w-64 shrink-0 flex-col border-r"
           :class="outlineOpen ? 'flex' : 'hidden md:flex'"
@@ -333,6 +418,22 @@ function exitZen() {
   --border: color-mix(in oklab, var(--zen-fg) 12%, transparent);
   background: var(--zen-bg);
   color: var(--zen-fg);
+}
+
+.zen-chrome {
+  background: color-mix(in oklab, var(--zen-bg) 92%, transparent);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-100%);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.zen-chrome[data-open='1'] {
+  pointer-events: auto;
+  opacity: 1;
+  transform: none;
 }
 
 .zen-para-rule {
