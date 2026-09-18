@@ -390,6 +390,95 @@ class TextStructureParserTest {
     }
 
     /**
+     * 括号或◎后的干支不合法时仍要收下年号。形近错字纠正后写入；纠正不了则干支为空，公元仍在。
+     */
+    @Test
+    void biannianKeepsYearWhenGanzhiIsTypoOrInvalid() {
+        StructureProfile profile = registry.require("biannian-juan-ji-nian");
+        TextStructureParser.ParseResult result = parser.parse(read("biannian-ganzhi-year.txt"), profile);
+        assertTrue(result.acceptable(), result.summary());
+        List<String> titles = List.of(
+                "玄宗至道大圣大明孝皇帝中之上开元十九年（辛末，公元七三一年）",
+                "穆宗睿圣文惠孝皇帝下宝历二年（丙年，公元八二六年）",
+                "穆宗睿圣文惠孝皇帝下太和二年（戌申，公元八二八年）",
+                "宣宗元圣至明成武献文睿智章仁神聪懿道大孝皇帝下大中十二年（戌寅，公元八五八年）",
+                "懿宗昭圣恭惠孝皇帝下咸通十三年（壬庚，公元八七二年）",
+                "◎建武十二辛末，公元三六年",
+                "孝献皇帝丙兴平元年（甲戊，公元一九四年）");
+        for (String title : titles) {
+            assertTrue(
+                    result.unmatchedHeadings().stream().noneMatch(title::equals),
+                    () -> "未识别 " + title + " " + result.unmatchedHeadings());
+        }
+        assertTrue(result.unmatchedHeadings().isEmpty(), () -> result.unmatchedHeadings().toString());
+        record Case(String path, int ceYear, String ganzhi, String di, String year) {}
+        List<Case> cases = List.of(
+                new Case(
+                        "卷第二百一十三（唐纪二十九）/玄宗至道大圣大明孝皇帝中之上/开元十九年",
+                        731,
+                        "辛未",
+                        "玄宗至道大圣大明孝皇帝中之上",
+                        "开元十九年"),
+                new Case(
+                        "卷第二百四十三（唐纪五十九）/穆宗睿圣文惠孝皇帝下/宝历二年",
+                        826,
+                        null,
+                        "穆宗睿圣文惠孝皇帝下",
+                        "宝历二年"),
+                new Case(
+                        "卷第二百四十三（唐纪五十九）/穆宗睿圣文惠孝皇帝下/太和二年",
+                        828,
+                        "戊申",
+                        "穆宗睿圣文惠孝皇帝下",
+                        "太和二年"),
+                new Case(
+                        "卷第二百四十九（唐纪六十五）/宣宗元圣至明成武献文睿智章仁神聪懿道大孝皇帝下/大中十二年",
+                        858,
+                        "戊寅",
+                        "宣宗元圣至明成武献文睿智章仁神聪懿道大孝皇帝下",
+                        "大中十二年"),
+                new Case(
+                        "卷第二百五十二（唐纪六十八）/懿宗昭圣恭惠孝皇帝下/咸通十三年",
+                        872,
+                        null,
+                        "懿宗昭圣恭惠孝皇帝下",
+                        "咸通十三年"),
+                new Case("卷第四十三（汉纪三十五）/世祖光武皇帝中/建武十二年", 36, "辛未", "世祖光武皇帝中", "建武十二年"),
+                new Case("卷第六十一（汉纪五十三）/孝献皇帝丙/兴平元年", 194, "甲戌", "孝献皇帝丙", "兴平元年"));
+        for (Case item : cases) {
+            assertEquals(1, count(result, item.path()), item.path());
+            TextStructureParser.Unit unit = result.units().stream()
+                    .filter(row -> item.path().equals(row.path()))
+                    .findFirst()
+                    .orElseThrow();
+            assertEquals(item.ceYear(), unit.ceYear(), item.path());
+            assertEquals(item.ganzhi(), unit.ganzhi(), item.path());
+            OutlineTrees.OutlineNode node = findNode(result.outline(), item.path());
+            assertEquals(item.year(), node.label());
+            assertEquals(item.ceYear(), node.ceYear());
+            assertEquals(item.ganzhi(), node.ganzhi());
+            assertEquals(item.di(), findNode(result.outline(), parentPath(item.path())).label());
+        }
+        assertTrue(result.units().stream().noneMatch(unit -> unit.path().contains("公元")));
+        assertTrue(result.units().stream()
+                .noneMatch(unit -> unit.path().contains("辛末")
+                        || unit.path().contains("戌申")
+                        || unit.path().contains("戌寅")
+                        || unit.path().contains("丙年")
+                        || unit.path().contains("壬庚")
+                        || unit.path().contains("甲戊")));
+        assertEquals("辛未", TextStructureParser.normalizeGanzhi("辛末"));
+        assertEquals("戊申", TextStructureParser.normalizeGanzhi("戌申"));
+        assertEquals("戊寅", TextStructureParser.normalizeGanzhi("戌寅"));
+        assertEquals("甲戌", TextStructureParser.normalizeGanzhi("甲戊"));
+        assertEquals("癸巳", TextStructureParser.normalizeGanzhi("癸已"));
+        assertEquals("己丑", TextStructureParser.normalizeGanzhi("己丑"));
+        assertEquals(null, TextStructureParser.normalizeGanzhi("丙年"));
+        assertEquals(null, TextStructureParser.normalizeGanzhi("壬庚"));
+        assertFalse(profile.name().contains("通鉴"));
+    }
+
+    /**
      * 识别不到标题时不得当作可确认结果，也不生成 pN。
      */
     @Test
