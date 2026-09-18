@@ -13,15 +13,28 @@ const ME_KEY = 'ontotrace.me'
 export const NOTO_SERIF_CJK_CSS = 'https://fontsapi.zeoseven.com/285/main/result.css'
 /** ZeoSeven 霞鹜文楷等宽（OFL）unicode-range 分包 CSS。 */
 export const LXGW_WENKAI_MONO_CSS = 'https://fontsapi.zeoseven.com/293/main/result.css'
+/** ZeoSeven 京华老宋（KingHwaOldSong，作者允许嵌入网页）。 */
+export const KINGHWA_OLD_SONG_CSS = 'https://fontsapi.zeoseven.com/309/main/result.css'
+/** ZeoSeven 上图东观（STDongGuanTi，上图开放共享；只热链不打包）。 */
+export const ST_DONGGUAN_CSS = 'https://fontsapi.zeoseven.com/488/main/result.css'
 
-/** 正文字体。宋 / 楷走开源 webfont，黑体用系统无衬线，不拉商业字体。 */
+const SONG_FALLBACK = '"Songti SC", "STSong", "SimSun", "NSimSun", serif'
+
+/** 正文字体。webfont 按需热链 ZeoSeven；黑体用系统无衬线。 */
 export const ZEN_FONT_OPTIONS = [
   {
     id: 'noto',
     label: '思源宋体',
-    stack: '"Noto Serif CJK", "Songti SC", "STSong", "SimSun", serif',
+    stack: `"Noto Serif CJK", ${SONG_FALLBACK}`,
     cssId: 'noto-serif-cjk-font-css',
     href: NOTO_SERIF_CJK_CSS,
+  },
+  {
+    id: 'kinghwa',
+    label: '京华老宋',
+    stack: `"KingHwaOldSong", ${SONG_FALLBACK}`,
+    cssId: 'kinghwa-oldsong-font-css',
+    href: KINGHWA_OLD_SONG_CSS,
   },
   {
     id: 'kai',
@@ -29,6 +42,13 @@ export const ZEN_FONT_OPTIONS = [
     stack: '"LXGW WenKai Mono", "Kaiti SC", "STKaiti", "KaiTi", serif',
     cssId: 'lxgw-wenkai-mono-font-css',
     href: LXGW_WENKAI_MONO_CSS,
+  },
+  {
+    id: 'dongguan',
+    label: '上图东观',
+    stack: `"STDongGuanTi", ${SONG_FALLBACK}`,
+    cssId: 'stdongguanti-font-css',
+    href: ST_DONGGUAN_CSS,
   },
   {
     id: 'hei',
@@ -42,14 +62,44 @@ export const ZEN_FONT_OPTIONS = [
 
 export type ZenFontId = (typeof ZEN_FONT_OPTIONS)[number]['id']
 
-/** 背景模式。正常沿用羊皮纸；护眼 / 夜间参考读通鉴色值。 */
+/** 背景模式。正常羊皮纸，护眼浅绿；夜间比读通鉴 `#10141b` 浅一档，仍是夜间。 */
 export const ZEN_THEME_OPTIONS = [
   { id: 'normal', label: '正常', bg: '#f6f1e7', fg: '#222', muted: '#555' },
   { id: 'eye', label: '护眼', bg: '#f6ffe8', fg: '#222', muted: '#4a5a3c' },
-  { id: 'night', label: '夜间', bg: '#10141b', fg: '#e8e6e1', muted: '#9aa3ad' },
+  { id: 'night', label: '夜间', bg: '#1c2430', fg: '#e8e6e1', muted: '#9aa3ad' },
 ] as const
 
 export type ZenThemeId = (typeof ZEN_THEME_OPTIONS)[number]['id']
+
+export type ZenTheme = (typeof ZEN_THEME_OPTIONS)[number]
+
+/**
+ * 阅读壳 / 弹层共用的主题变量。弹层 teleport 到 body，必须自己带一份。
+ *
+ * @param theme 当前背景
+ */
+export function zenThemeVars(theme: ZenTheme): Record<string, string> {
+  return {
+    '--zen-bg': theme.bg,
+    '--zen-fg': theme.fg,
+    '--zen-muted': theme.muted,
+    '--background': theme.bg,
+    '--foreground': theme.fg,
+    '--muted-foreground': theme.muted,
+    '--popover': theme.bg,
+    '--popover-foreground': theme.fg,
+    '--card': theme.bg,
+    '--card-foreground': theme.fg,
+    '--muted': `color-mix(in oklab, ${theme.fg} 8%, transparent)`,
+    '--border': `color-mix(in oklab, ${theme.fg} 12%, transparent)`,
+    '--input': `color-mix(in oklab, ${theme.fg} 12%, transparent)`,
+    '--accent': `color-mix(in oklab, ${theme.fg} 10%, ${theme.bg})`,
+    '--accent-foreground': theme.fg,
+    '--secondary': `color-mix(in oklab, ${theme.fg} 10%, ${theme.bg})`,
+    '--secondary-foreground': theme.fg,
+    '--ring': `color-mix(in oklab, ${theme.fg} 28%, transparent)`,
+  }
+}
 
 /** 登录用户的纯净阅读偏好。 */
 export interface ZenPrefs {
@@ -99,7 +149,17 @@ export function parseZenSize(raw: unknown): number {
  * @param raw 原始值
  */
 export function parseZenFont(raw: unknown): ZenFontId {
-  return raw === 'kai' || raw === 'hei' ? raw : 'noto'
+  return ZEN_FONT_OPTIONS.some((item) => item.id === raw) ? (raw as ZenFontId) : 'noto'
+}
+
+/**
+ * 段间横线中间的编号。index 从 0 起。
+ *
+ * @param index 当前段
+ * @param total 当前目录总段数
+ */
+export function zenParagraphLabel(index: number, total: number): string {
+  return `${index + 1} / ${total}`
 }
 
 /**

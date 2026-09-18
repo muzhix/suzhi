@@ -17,6 +17,8 @@ import {
   loadZenPrefs,
   readSessionUserId,
   saveZenPrefs,
+  zenParagraphLabel,
+  zenThemeVars,
   ZEN_FONT_OPTIONS,
   ZEN_SIZE_MAX,
   ZEN_SIZE_MIN,
@@ -39,6 +41,11 @@ const theme = computed(
 const font = computed(
   () => ZEN_FONT_OPTIONS.find((item) => item.id === prefs.font) ?? ZEN_FONT_OPTIONS[0],
 )
+const shellStyle = computed<Record<string, string>>(() => ({
+  '--zen-size': `${prefs.size}px`,
+  '--font-family-classical': font.value.stack,
+  ...zenThemeVars(theme.value),
+}))
 
 const outline = useQuery({
   queryKey: computed(() => ['outline', versionId.value]),
@@ -57,6 +64,8 @@ const units = useQuery({
   },
   enabled: computed(() => Boolean(versionId.value && selectedPath.value)),
 })
+
+const textUnits = computed(() => units.data.value ?? [])
 
 function replaceQuery(path = selectedPath.value) {
   const query: Record<string, string> = {}
@@ -132,13 +141,7 @@ function exitZen() {
     <div
       class="zen-page flex h-dvh min-h-0 flex-col overflow-hidden"
       :class="prefs.theme === 'night' ? 'dark' : undefined"
-      :style="{
-        '--zen-size': `${prefs.size}px`,
-        '--zen-bg': theme.bg,
-        '--zen-fg': theme.fg,
-        '--zen-muted': theme.muted,
-        '--font-family-classical': font.stack,
-      }"
+      :style="shellStyle"
       :data-reader-font="prefs.font"
       :data-zen-theme="prefs.theme"
       :data-zen-wide="prefs.wide ? '1' : '0'"
@@ -156,7 +159,12 @@ function exitZen() {
                 <SettingsIcon />
               </Button>
             </PopoverTrigger>
-            <PopoverContent class="max-h-[min(36rem,calc(100dvh-3rem))] w-[22rem] overflow-y-auto" align="end">
+            <PopoverContent
+              class="max-h-[min(36rem,calc(100dvh-3rem))] w-[22rem] overflow-y-auto"
+              :class="prefs.theme === 'night' ? 'dark' : undefined"
+              :style="zenThemeVars(theme)"
+              align="end"
+            >
               <div class="mb-2 flex items-center justify-between gap-2">
                 <p class="text-sm font-medium">阅读配置</p>
                 <PopoverClose as-child>
@@ -211,11 +219,11 @@ function exitZen() {
                 </div>
                 <div class="grid gap-2">
                   <Label>正文字体</Label>
-                  <div class="flex rounded-lg border p-0.5">
+                  <div class="flex flex-wrap gap-0.5 rounded-lg border p-0.5">
                     <Button
                       v-for="item in ZEN_FONT_OPTIONS"
                       :key="item.id"
-                      class="flex-1"
+                      class="min-w-[30%] flex-1"
                       size="sm"
                       type="button"
                       :variant="prefs.font === item.id ? 'default' : 'ghost'"
@@ -290,14 +298,17 @@ function exitZen() {
         </aside>
         <ScrollArea class="min-w-0 flex-1">
           <div
-            class="zen-body px-6 py-8"
-            :class="prefs.wide ? 'w-full' : 'mx-auto max-w-[42em]'"
+            class="zen-body py-8"
+            :class="prefs.wide ? 'w-full px-10 md:px-16' : 'mx-auto max-w-[42em] px-6'"
           >
-            <p v-for="unit in units.data.value ?? []" :key="unit.id" class="zen-classical">
-              {{ unit.displayText }}
-            </p>
+            <template v-for="(unit, index) in textUnits" :key="unit.id">
+              <div class="zen-para-rule" aria-hidden="true">
+                <span>{{ zenParagraphLabel(index, textUnits.length) }}</span>
+              </div>
+              <p class="zen-classical">{{ unit.displayText }}</p>
+            </template>
             <p
-              v-if="selectedPath && !(units.data.value ?? []).length && !units.isPending.value"
+              v-if="selectedPath && !textUnits.length && !units.isPending.value"
               class="text-muted-foreground text-sm"
             >
               这一节点下没有段落。
@@ -322,6 +333,29 @@ function exitZen() {
   --border: color-mix(in oklab, var(--zen-fg) 12%, transparent);
   background: var(--zen-bg);
   color: var(--zen-fg);
+}
+
+.zen-para-rule {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25em 0 0.5em;
+  color: var(--zen-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  user-select: none;
+}
+
+.zen-para-rule:first-child {
+  margin-top: 0;
+}
+
+.zen-para-rule::before,
+.zen-para-rule::after {
+  content: "";
+  flex: 1 1 0;
+  border-top: 1px solid color-mix(in oklab, var(--zen-fg) 18%, transparent);
 }
 
 .zen-classical {
