@@ -96,6 +96,32 @@ class TextStructureParserTest {
     }
 
     /**
+     * 目录与正文同形的不规则篇名：缺「第」、列伟、中间多「卷」，反查卷号仍要命中。
+     */
+    @Test
+    void divergentLooksUpIrregularLiezhuanTitles() {
+        String fixture = read("jizhuan-toc-divergent-irregular-pian.txt");
+        assertTrue(fixture.contains("\u3000\u3000列传四十五"));
+        assertTrue(fixture.contains("\u3000\u3000列伟第四十六"));
+        assertTrue(fixture.contains("\u3000\u3000列传八十四"));
+        assertTrue(fixture.contains("\u3000\u3000列传卷第一百一十"));
+
+        StructureProfile profile = registry.require("jizhuan-toc-divergent");
+        TextStructureParser.ParseResult result = parser.parse(fixture, profile);
+        assertTrue(result.acceptable(), result.summary());
+        assertEquals(4, result.headingCount());
+        assertEquals(
+                List.of(
+                        "卷九十五 列传四十五 睿宗诸子",
+                        "卷九十六 列伟第四十六",
+                        "卷一百三十四 列传八十四",
+                        "卷一百六十 列传卷第一百一十"),
+                result.units().stream().map(TextStructureParser.Unit::path).distinct().toList());
+        assertTrue(paths(result).stream().noneMatch(path -> path.contains("/")));
+        assertTrue(result.unmatchedVolumes().isEmpty(), () -> result.unmatchedVolumes().toString());
+    }
+
+    /**
      * 丢掉文前目录副本；表节点可识别；正文卷下多段。
      */
     @Test

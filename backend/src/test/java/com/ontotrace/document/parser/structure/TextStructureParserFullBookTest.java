@@ -3,6 +3,7 @@ package com.ontotrace.document.parser.structure;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -63,6 +64,18 @@ class TextStructureParserFullBookTest {
             }
             if (result.units().stream().anyMatch(unit -> unit.path().contains("/"))) {
                 throw new AssertionError(schemeId + " path 含多层 /");
+            }
+            if (!result.unmatchedVolumes().isEmpty()) {
+                throw new AssertionError(schemeId + " 未对照卷 " + result.unmatchedVolumes());
+            }
+            for (String path : List.of(
+                    "卷九十五 列传四十五 睿宗诸子",
+                    "卷九十六 列伟第四十六",
+                    "卷一百三十四 列传八十四",
+                    "卷一百六十 列传卷第一百一十")) {
+                if (result.units().stream().noneMatch(unit -> path.equals(unit.path()))) {
+                    throw new AssertionError(schemeId + " 未对照 " + path + ": " + result.summary());
+                }
             }
         }
         return 1;
